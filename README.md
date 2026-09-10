@@ -2,15 +2,17 @@
 
 Gra offline w stylu dino z Chrome: rower dirt zamiast dinozaura, kickery zamiast kaktusów.
 
-- `index.html` — cała gra w jednym pliku (canvas, sprite'y rysowane pikselowo w kodzie).
-- `parts/` — źródło podzielone na części; `cat parts/* > index.html` składa plik.
+## Pliki
+- `index.html` — cała gra (czcionka pikselowa zapakowana w plik, dźwięki syntezowane, zero zależności).
+- `sw.js` — service worker, zapisuje grę w pamięci przeglądarki przy pierwszym otwarciu.
+- `manifest.webmanifest`, `icons/` — instalacja jako aplikacja na ekranie głównym.
+
+## Uruchomienie
+1. Wrzuć katalog na hosting statyczny po https (GitHub Pages, Netlify, własny serwer). Service worker nie działa z `file://`.
+2. Otwórz adres na telefonie. Android: „Dodaj do ekranu głównego”. iPhone: „Udostępnij → Do ekranu początkowego”.
+3. Po pierwszym otwarciu gra działa bez sieci.
 
 ## Sterowanie
-- 1× klik na najeździe, tuż przed wierzchołkiem kickera — wybicie (im bliżej krawędzi, tym wyżej).
-- 2× klik w locie — backflip. 3× klik w locie — tailwhip.
-- Kolejne 2×/3× po skończonym triku — następny trik w tym samym locie (mnożnik ×2, ×3).
+- 1× klik tuż przed krawędzią kickera — wybicie (im bliżej krawędzi, tym wyżej).
+- W locie: 1× barspin, 2× backflip, 3× tailwhip. Kliknięcia w trakcie triku ustawiają następny w kolejce.
 - Spacja / strzałka w górę działają jak klik.
-
-## Stan prac
-1. Grafika — gotowe. 2. Fizyka wybicia — gotowe. 3. Triki w locie — gotowe.
-4. Poziomy, 5. Punktacja i rekordy, 6. Offline (PWA) i dźwięk — do zrobienia.
