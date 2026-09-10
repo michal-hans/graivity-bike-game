@@ -34,6 +34,7 @@
   .panel { display:grid; grid-template-columns:1fr 1fr; gap:0 32px; margin-top:26px; }
   .col { border-top:2px dashed var(--ink-3); padding-block:14px 22px; min-width:0; }
   .wide { grid-column:1 / -1; }
+  #dev { display:contents; } #dev[hidden] { display:none; }
   @media (max-width:640px) { .panel { grid-template-columns:1fr; gap:0; } }
   h1 { font-family:"Press Start 2P","Courier New",monospace; font-size:14px; letter-spacing:.04em; margin:0 0 12px; text-wrap:balance; }
   h2 { font-family:"Press Start 2P","Courier New",monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; margin:0 0 12px; text-wrap:balance; }
@@ -69,7 +70,18 @@
 
   <section class="panel">
     <div class="col wide">
-      <h1>Dirt Jumper — krok 5: offline, dźwięk, telefon</h1>
+      <h2>Sterowanie</h2>
+      <ul>
+        <li><b>Klik</b> tuż przed krawędzią kickera — wybicie. Im bliżej krawędzi, tym wyższy lot. Za wcześnie albo bez kliknięcia wpadasz w dziurę.</li>
+        <li>W locie: <b>1× klik</b> barspin (50 pkt) · <b>2× klik</b> backflip (100) · <b>3× klik</b> tailwhip (150).</li>
+        <li>Klikaj w trakcie triku, żeby ustawić kolejny — drugi trik w locie liczy się ×2, trzeci ×3. Lądowanie w połowie obrotu to upadek.</li>
+        <li>Co 10 kickerów nowy poziom: większe kickery, ciaśniej, szybciej. Seria 5 kickerów z trikiem daje +100.</li>
+        <li>Spacja albo strzałka w górę działają jak klik. Po zmianie karty gra sama się zatrzymuje.</li>
+      </ul>
+    </div>
+    <div id="dev" hidden>
+    <div class="col wide">
+      <h1>Panel testowy (tylko w tej wersji)</h1>
       <p>Czcionka pikselowa jest zapakowana do pliku, więc gra nie potrzebuje sieci. Dźwięki są syntezowane w przeglądarce (Web Audio), bez plików. Po zmianie karty gra sama się zatrzymuje, wraca po kliknięciu. Przycisk „Pełny ekran” na telefonie daje widok na całą szerokość, najlepiej w poziomie.</p>
     </div>
 
@@ -131,6 +143,7 @@
         <li>Więcej trików (no-hander, superman) i step-upy: dwa kickery bez płaskiego odcinka.</li>
         <li>Rekordy współdzielone między urządzeniami.</li>
       </ul>
+    </div>
     </div>
   </section>
 </main>
