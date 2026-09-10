@@ -1,0 +1,648 @@
+<title>Dirt Jumper</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+  :root {
+    --bg: #f7f7f7;
+    --ink: #535353;
+    --ink-2: #8a8a8a;
+    --ink-3: #cfcfcf;
+    --hi: #ffffff;
+    --panel: #ededed;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #202124; --ink: #acacac; --ink-2: #7a7a7a; --ink-3: #3c3d41; --hi: #202124; --panel: #27282c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #202124; --ink: #acacac; --ink-2: #7a7a7a; --ink-3: #3c3d41; --hi: #202124; --panel: #27282c;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "VT323", "Courier New", monospace; font-size: 21px; line-height: 1.3;
+    padding-block: 0 48px; padding-inline: 16px;
+    -webkit-font-smoothing: none;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .stage { padding-block: 28px 8px; }
+  canvas#game {
+    display: block; width: 100%; max-width: 100%; aspect-ratio: 720 / 300;
+    touch-action: none; cursor: pointer; image-rendering: pixelated; image-rendering: crisp-edges;
+    outline: none;
+  }
+  canvas#game:focus-visible { outline: 2px dashed var(--ink-2); outline-offset: 4px; }
+  .hint-line {
+    font-family: "Press Start 2P", "Courier New", monospace; font-size: 9px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-align: center; margin: 0; text-transform: uppercase;
+  }
+  .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; margin-top: 28px; }
+  .col { border-top: 2px dashed var(--ink-3); padding-block: 14px 22px; min-width: 0; }
+  .wide { grid-column: 1 / -1; }
+  @media (max-width: 640px) { .panel { grid-template-columns: 1fr; gap: 0; } }
+  h2 {
+    font-family: "Press Start 2P", "Courier New", monospace; font-size: 11px; letter-spacing: 0.06em;
+    text-transform: uppercase; margin: 0 0 12px; color: var(--ink); text-wrap: balance;
+  }
+  h2 .step { color: var(--ink-2); margin-right: 8px; }
+  p, li { max-width: 62ch; }
+  p { margin: 0 0 10px; }
+  ul { margin: 0 0 10px; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  b { font-weight: 400; background: var(--ink); color: var(--bg); padding: 0 5px; }
+  .note { color: var(--ink-2); }
+  .muted { color: var(--ink-2); }
+  /* sliders */
+  .tune { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px; align-items: center; }
+  .tune label { white-space: nowrap; }
+  .tune output { font-variant-numeric: tabular-nums; min-width: 6ch; text-align: right; }
+  input[type=range] { width: 100%; accent-color: var(--ink); height: 20px; margin: 0; }
+  button {
+    font-family: inherit; font-size: 19px; background: transparent; color: var(--ink);
+    border: 2px solid var(--ink); padding: 2px 12px; cursor: pointer; margin-top: 10px;
+  }
+  button:hover { background: var(--ink); color: var(--bg); }
+  button:focus-visible { outline: 2px dashed var(--ink-2); outline-offset: 3px; }
+  #readout { margin-top: 12px; font-variant-numeric: tabular-nums; min-height: 3.9em; }
+  /* gallery */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .frame { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .frame canvas { width: 150px; max-width: 100%; aspect-ratio: 150/140; background: var(--panel); image-rendering: pixelated; }
+  .frame span { font-family: "Press Start 2P", "Courier New", monospace; font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-2); text-align: center; }
+  .kickers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 12px; }
+  .kickers canvas { max-width: 100%; background: var(--panel); image-rendering: pixelated; }
+  .kickers .frame { align-items: flex-start; }
+  /* table */
+  .tbl { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 3px 10px; border-bottom: 1px dotted var(--ink-3); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-family: "Press Start 2P", "Courier New", monospace; font-size: 8px; letter-spacing: 0.05em; color: var(--ink-2); text-transform: uppercase; }
+  ol.plan { padding-left: 26px; }
+  ol.plan li { margin-bottom: 6px; }
+  .done { text-decoration: none; }
+  .done::after { content: " ✓"; }
+  @media (prefers-reduced-motion: reduce) { .frame canvas { animation: none; } }
+</style>
+
+<main class="wrap">
+  <section class="stage">
+    <canvas id="game" width="720" height="300" tabindex="0" aria-label="Dirt Jumper — gra. Kliknij lub naciśnij spację."></canvas>
+    <p class="hint-line" id="hintline">1× klik na kickerze = skok · 2× w locie = backflip · 3× w locie = tailwhip</p>
+  </section>
+
+  <section class="panel">
+    <div class="col">
+      <h2>Sterowanie</h2>
+      <ul>
+        <li><b>1× klik</b> na najeździe, tuż przed wierzchołkiem kickera — wybicie. Im bliżej krawędzi, tym wyższy lot.</li>
+        <li><b>2× klik</b> w locie — backflip (obrót całego roweru z zawodnikiem).</li>
+        <li><b>3× klik</b> w locie — tailwhip (rower obraca się wokół kierownicy, zawodnik zostaje).</li>
+        <li>Po skończonym triku kolejne 2× / 3× — następny trik w tym samym locie. Drugi trik liczy się ×2, trzeci ×3.</li>
+        <li>Spacja albo strzałka w górę działają jak klik. Klik na płaskim to mały bunny hop.</li>
+      </ul>
+      <p class="note">Koniec gry: wpadniesz w dziurę za kickerem (za wczesne wybicie lub brak kliknięcia), wylądujesz w połowie obrotu, albo uderzysz w czoło lądowania.</p>
+    </div>
+
+    <div class="col">
+      <h2><span class="step">2</span>Fizyka — suwaki do testów</h2>
+      <div class="tune" id="tune"></div>
+      <button id="reset" type="button">Przywróć domyślne</button>
+      <div id="readout" class="muted">Ostatnie wybicie: —</div>
+    </div>
+
+    <div class="col wide">
+      <h2><span class="step">1</span>Grafika — klatki animacji</h2>
+      <p class="note">Jeden odcień tuszu jak w dino, siatka 1 px, sprite ~48×44 px. Zawodnik i rower to dwa osobne sprite'y, dzięki czemu tailwhip obraca sam rower.</p>
+      <div class="gallery" id="gallery"></div>
+    </div>
+
+    <div class="col wide">
+      <h2>Kickery — trzy rozmiary, losowany ±12%</h2>
+      <div class="kickers" id="kickers"></div>
+      <div class="tbl"><table id="ktable"></table></div>
+      <p class="note">Wysokość lotu = mnożnik × wysokość kickera przy idealnym wybiciu. Dziura ma 58% dystansu idealnego skoku, więc bezpiecznie przelatuje wybicie o jakości ≥ ok. 0,7 (kliknięcie w ostatnich ~200 ms najazdu).</p>
+    </div>
+
+    <div class="col wide">
+      <h2>Plan kolejnych kroków</h2>
+      <ol class="plan">
+        <li class="done">Grafika: sprite'y roweru, zawodnika (7 póz), kickerów S/M/L, chmur, ikony restartu.</li>
+        <li class="done">Fizyka wybicia: najazd po krzywej, jakość wybicia zależna od czasu do wierzchołka, dziura skalowana do rozmiaru kickera i prędkości.</li>
+        <li class="done">Triki w locie: backflip (2×), tailwhip (3×), zamiana flip→whip przy 3. kliknięciu, kombo w jednym locie, kara za niedokończony obrót.</li>
+        <li>Poziomy: sekwencje kickerów o rosnącej trudności (odcinki po 10 kickerów), podwójne kickery (step-up), zmienne tempo, wskazówki wygaszane po opanowaniu.</li>
+        <li>Punktacja: tabela rekordów lokalnie, mnożnik za serię czystych lądowań, bonus „perfect”, podsumowanie po przejeździe.</li>
+        <li>Offline: manifest PWA + service worker, czcionka pikselowa spakowana do pliku, dźwięki.</li>
+      </ol>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+'use strict';
+// ============ Tunables ============
+const TUNE_DEF = { g: 620, v0: 330, flip: 0.80, whip: 0.65, win: 80, boost: 2.6 };
+const TUNE_META = [
+  ['g',    'Grawitacja',        400, 900, 10,   'px/s²'],
+  ['v0',   'Prędkość startowa', 250, 450, 5,    'px/s'],
+  ['boost','Mnożnik wysokości', 1.8, 3.6, 0.1,  '× H'],
+  ['flip', 'Czas backflipu',    0.5, 1.2, 0.05, 's'],
+  ['whip', 'Czas tailwhipa',    0.4, 1.0, 0.05, 's'],
+  ['win',  'Okno „perfect”',    40,  200, 10,   'ms'],
+];
+let T = Object.assign({}, TUNE_DEF);
+try { Object.assign(T, JSON.parse(localStorage.getItem('dj_tune') || '{}')); } catch (e) {}
+
+// ============ Palette (from CSS tokens) ============
+const pal = { i: '#535353', l: '#8a8a8a', w: '#ffffff', bg: '#f7f7f7' };
+function readPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  pal.i = cs.getPropertyValue('--ink').trim() || pal.i;
+  pal.l = cs.getPropertyValue('--ink-2').trim() || pal.l;
+  pal.w = cs.getPropertyValue('--hi').trim() || pal.w;
+  pal.bg = cs.getPropertyValue('--bg').trim() || pal.bg;
+}
+
+// ============ Pixel DSL ============
+class Pix {
+  constructor() { this.m = new Map(); }
+  set(x, y, c) { this.m.set(((x | 0) + 512) * 4096 + ((y | 0) + 512), c); }
+  rect(x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.set(x + i, y + j, c); }
+  line(x0, y0, x1, y1, c, w = 1) {
+    x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+    const steep = Math.abs(y1 - y0) > Math.abs(x1 - x0);
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    for (;;) {
+      for (let k = 0; k < w; k++) { const o = k - Math.floor((w - 1) / 2); if (steep) this.set(x0 + o, y0, c); else this.set(x0, y0 + o, c); }
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+  disc(cx, cy, r, c) { for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * 0.5) this.set(cx + x, cy + y, c); }
+  ring(cx, cy, r, c) {
+    let x = r, y = 0, d = 1 - r;
+    while (x >= y) {
+      for (const [a, b] of [[x, y], [y, x], [-y, x], [-x, y], [-x, -y], [-y, -x], [y, -x], [x, -y]]) this.set(cx + a, cy + b, c);
+      y++; if (d < 0) d += 2 * y + 1; else { x--; d += 2 * (y - x) + 1; }
+    }
+  }
+  text(rows, ox, oy, map) { // string art: '.' empty, other chars map to colors
+    rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) { const ch = row[i]; if (ch !== '.' && ch !== ' ') this.set(ox + i, oy + j, map[ch] || 'i'); } });
+  }
+  render() {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const k of this.m.keys()) { const x = Math.floor(k / 4096) - 512, y = (k % 4096) - 512; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    const cv = document.createElement('canvas'); cv.width = x1 - x0 + 1; cv.height = y1 - y0 + 1;
+    const c = cv.getContext('2d');
+    for (const [k, col] of this.m) { const x = Math.floor(k / 4096) - 512, y = (k % 4096) - 512; c.fillStyle = pal[col]; c.fillRect(x - x0, y - y0, 1, 1); }
+    return { img: cv, x0, y0 };
+  }
+}
+function blit(ctx, s, x, y) { ctx.drawImage(s.img, Math.round(x) + s.x0, Math.round(y) + s.y0); }
+
+// ============ Bike (local coords: origin = ground midpoint between wheels, y up is negative) ============
+function drawBike(p, spoke) {
+  for (const cx of [-15, 15]) {
+    p.ring(cx, -6, 6, 'i'); p.ring(cx, -6, 5, 'i'); p.disc(cx, -6, 1, 'i');
+    if (spoke === 0) { p.line(cx - 4, -6, cx + 4, -6, 'l'); p.line(cx, -10, cx, -2, 'l'); }
+    else { p.line(cx - 3, -9, cx + 3, -3, 'l'); p.line(cx - 3, -3, cx + 3, -9, 'l'); }
+    for (const [a, b] of [[0, -7], [0, 7], [-7, 0], [7, 0], [5, 5], [-5, 5], [5, -5], [-5, -5]]) p.set(cx + a, -6 + b, 'i'); // knobs
+  }
+  p.line(-15, -6, -1, -9, 'i');        // chainstay
+  p.line(-15, -6, -8, -16, 'i');       // seat stay
+  p.line(-1, -9, -9, -17, 'i', 2);     // seat tube
+  p.line(-8, -17, 10, -20, 'i');       // top tube
+  p.line(-1, -9, 11, -19, 'i', 2);     // down tube
+  p.line(-12, -19, -6, -19, 'i', 2);   // seat
+  p.line(10, -21, 11, -18, 'i', 2);    // head tube
+  p.line(11, -18, 15, -6, 'i', 2);     // fork
+  p.line(10, -21, 11, -23, 'i');       // stem
+  p.line(9, -23, 15, -23, 'i');        // bars
+  p.rect(14, -24, 2, 2, 'i');          // grip
+  p.disc(-1, -9, 2, 'i');              // chainring
+  p.line(-4, -9, 2, -9, 'i');          // cranks
+  p.rect(-6, -9, 2, 1, 'i'); p.rect(2, -9, 2, 1, 'i'); // pedals
+}
+
+// ============ Rider poses (joints) ============
+const POSES = {
+  stand:  { hip: [-5, -25], knee: [3, -18], foot: [0, -10], sh: [6, -32], head: [10, -37], hand: [12, -23] },
+  crouch: { hip: [-6, -21], knee: [4, -16], foot: [0, -10], sh: [5, -28], head: [10, -32], hand: [12, -23] },
+  extend: { hip: [-3, -29], knee: [1, -20], foot: [0, -10], sh: [8, -36], head: [12, -40], hand: [12, -23] },
+  air:    { hip: [-5, -24], knee: [3, -17], foot: [0, -10], sh: [6, -31], head: [10, -36], hand: [12, -23] },
+  flip:   { hip: [-9, -24], knee: [0, -17], foot: [0, -10], sh: [3, -32], head: [7, -36], hand: [12, -23] },
+  whip:   { hip: [-1, -27], knee: [0, -19], foot: [1, -12], sh: [7, -34], head: [11, -38], hand: [12, -23] },
+  down:   { hip: [-14, -4], knee: [-8, -7], foot: [-2, -4], sh: [-23, -5], head: [-28, -6], hand: [-18, -2] },
+};
+function drawRider(p, pose) {
+  const P = POSES[pose];
+  p.line(...P.hip, ...P.knee, 'i', 3);
+  p.line(...P.knee, ...P.foot, 'i', 3);
+  p.rect(P.foot[0] - 2, P.foot[1] - 1, 5, 2, 'i');     // boot
+  p.line(...P.hip, ...P.sh, 'i', 4);                   // torso
+  p.line(...P.sh, ...P.hand, 'i', 2);                  // arm
+  const [hx, hy] = P.head;
+  p.disc(hx, hy, 4, 'i');                              // helmet
+  p.line(hx + 2, hy - 4, hx + 6, hy - 4, 'i');         // peak
+  p.rect(hx + 1, hy - 2, 4, 2, 'w');                   // goggles
+  p.rect(hx + 3, hy + 1, 3, 2, 'i');                   // chin bar
+}
+
+const CLOUD = [
+  '.......######.......',
+  '.....##......##.....',
+  '....#..........#....',
+  '...#............##..',
+  '..#...............#.',
+  '.#.................#',
+  '#...................#',
+  '#####################',
+];
+
+const SPR = { bike: [], rider: {}, cloud: null };
+function buildSprites() {
+  SPR.bike = [0, 1].map(s => { const p = new Pix(); drawBike(p, s); return p.render(); });
+  for (const k in POSES) { const p = new Pix(); drawRider(p, k); SPR.rider[k] = p.render(); }
+  const c = new Pix(); c.text(CLOUD, 0, 0, { '#': 'l' }); SPR.cloud = c.render();
+}
+
+// ============ Kickers ============
+const KBASE = { S: 24, M: 40, L: 58 };
+function vyMax(k) { return Math.sqrt(2 * T.g * k.H * T.boost); }
+function rampH(k, t) { return k.H * Math.pow(t, 1.7); }
+function makeKicker(type, vx, jitter = true) {
+  const Hk = Math.round(KBASE[type] * (jitter ? 0.88 + Math.random() * 0.24 : 1));
+  const k = { type, H: Hk };
+  k.L = Math.round(Hk * 2.4 + 30);
+  const Tp = 2 * vyMax(k) / T.g;
+  k.gap = Math.round(0.58 * vx * Tp);
+  k.lH = Math.round(Hk * 0.55);
+  k.lL = Math.round(k.lH * 3 + 20);
+  k.total = k.L + k.gap + k.lL;
+  k.x = 0; k.img = null;
+  return k;
+}
+function renderKicker(k) {
+  const CH = k.H + 4, cv = document.createElement('canvas');
+  cv.width = k.total + 2; cv.height = CH;
+  const c = cv.getContext('2d'); const gy = CH - 1;
+  const px = (x, y, col) => { c.fillStyle = pal[col]; c.fillRect(x, y, 1, 1); };
+  // ramp
+  for (let x = 0; x <= k.L; x++) {
+    const h = rampH(k, x / k.L), top = Math.round(gy - h);
+    px(x, top, 'i'); px(x, top + 1, 'i');
+    for (let y = top + 3; y <= gy; y++) if ((x + 2 * y) % 5 === 0) px(x, y, 'i');
+  }
+  for (let y = Math.round(gy - k.H); y <= gy; y++) { px(k.L, y, 'i'); px(k.L + 1, y, 'i'); } // lip face
+  px(k.L - 1, gy - k.H - 1, 'i'); px(k.L, gy - k.H - 1, 'i'); // lip edge
+  // gap: jagged edges
+  const g0 = k.L + 2, g1 = k.L + k.gap;
+  for (let i = 0; i < 4; i++) { px(g0 + i, gy + 0, 'i'); px(g1 - 1 - i, gy, 'i'); }
+  for (let x = g0 + 4; x < g1 - 4; x += 7) { px(x, gy + 0, 'l'); }
+  // lander
+  const l0 = k.L + k.gap;
+  for (let y = Math.round(gy - k.lH); y <= gy; y++) { px(l0, y, 'i'); px(l0 + 1, y, 'i'); }
+  for (let x = 0; x <= k.lL; x++) {
+    const h = k.lH * (1 - x / k.lL), top = Math.round(gy - h);
+    px(l0 + x, top, 'i'); px(l0 + x, top + 1, 'i');
+    for (let y = top + 3; y <= gy; y++) if ((x + 2 * y) % 5 === 0) px(l0 + x, y, 'i');
+  }
+  k.img = cv;
+}
+// ============ Game state ============
+const W = 720, H = 300, GY = 262, PX = 130;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const S = {};
+let hi = 0; try { hi = +localStorage.getItem('dj_hi') || 0; } catch (e) {}
+let tut = 0; try { tut = +localStorage.getItem('dj_tut') || 0; } catch (e) {}
+function saveTut(n) { if (n > tut) { tut = n; try { localStorage.setItem('dj_tut', tut); } catch (e) {} } }
+const TUT_TEXT = ['KLIK TUŻ PRZED WIERZCHOŁKIEM', '2× KLIK = BACKFLIP', '3× KLIK = TAILWHIP', 'DUŻY KICKER = MIEJSCE NA 2 TRIKI'];
+
+function resetGame() {
+  Object.assign(S, {
+    state: 'idle', time: 0, dist: 0, vx: T.v0, score: 0, pending: 0,
+    hgt: 0, vy: 0, angle: 0, onGround: true, tr: null,
+    launch: null, trick: null, lastClick: null, jumpTricks: [],
+    landT: 0, launchT: 0, wheel: 0, kickers: [], clouds: [], floaters: [],
+    nextK: 0, nSpawn: 0, cleared: 0, reason: '', overT: 0, hintPulse: 0, shownHint3: false,
+  });
+  S.nextK = 520;
+  for (let i = 0; i < 3; i++) S.clouds.push({ x: 200 + i * 260 + Math.random() * 120, y: 40 + Math.random() * 90 });
+}
+
+function spawnKickers() {
+  while (S.nextK < S.dist + W + 300) {
+    const n = S.nSpawn, r = Math.random();
+    const type = n < 3 ? 'S' : n < 7 ? (r < 0.5 ? 'S' : 'M') : (r < 0.25 ? 'S' : r < 0.7 ? 'M' : 'L');
+    const k = makeKicker(type, S.vx); k.x = S.nextK; renderKicker(k);
+    S.kickers.push(k); S.nSpawn++;
+    const flat = Math.max(220, 620 - n * 12) * (0.75 + Math.random() * 0.5);
+    S.nextK = k.x + k.total + Math.round(flat);
+  }
+  S.kickers = S.kickers.filter(k => k.x + k.total > S.dist - 200);
+}
+
+function terrain(wx) {
+  for (const k of S.kickers) {
+    if (wx < k.x || wx >= k.x + k.total) continue;
+    const r = wx - k.x;
+    if (r < k.L) { const t = r / k.L; return { h: rampH(k, t), slope: 1.7 * k.H * Math.pow(t, 0.7) / k.L, kind: 'ramp', k, t }; }
+    if (r < k.L + k.gap) return { h: -Infinity, slope: 0, kind: 'gap', k };
+    const u = (r - k.L - k.gap) / k.lL; return { h: k.lH * (1 - u), slope: -k.lH / k.lL, kind: 'lander', k, u };
+  }
+  return { h: 0, slope: 0, kind: 'flat', k: null };
+}
+
+// ============ Scoring / events ============
+function floater(text, dy = -50) { S.floaters.push({ text, x: PX, y: GY - S.hgt + dy, t: 0 }); }
+const readout = document.getElementById('readout');
+function quality(dtLip) {
+  const win = T.win / 1000, far = win + 0.32;
+  if (dtLip <= win) return 1;
+  if (dtLip >= far) return 0.35;
+  return 1 - 0.65 * Math.pow((dtLip - win) / (far - win), 0.9);
+}
+function rate(q, dtLip) {
+  let txt = q >= 0.97 ? 'PERFECT +50' : q >= 0.7 ? 'DOBRZE' : 'ZA WCZEŚNIE';
+  if (q >= 0.97) S.pending += 50;
+  floater(txt, -58);
+  if (q >= 0.7) saveTut(1);
+  const k = S.launch && S.launch.k;
+  const air = k ? (2 * S.vy / T.g) : (2 * S.vy / T.g);
+  readout.innerHTML = `Ostatnie wybicie: jakość <b>${q.toFixed(2)}</b> · ${Math.round(dtLip * 1000)} ms przed wierzchołkiem<br>`
+    + (k ? `kicker ${k.type} (H ${k.H} px, dziura ${k.gap} px) · ` : 'bunny hop · ')
+    + `czas lotu ok. ${air.toFixed(2)} s · prędkość ${Math.round(S.vx)} px/s`;
+}
+function launch(q, k, dtLip) {
+  S.onGround = false; S.vy = q * vyMax(k); S.launchT = 0;
+  S.launch = { k, clicked: true, q, tLip: S.time + dtLip };
+  S.jumpTricks = []; S.lastClick = null;
+  rate(q, dtLip);
+}
+function finishTrick(sketchy) {
+  const t = S.trick; const base = t.type === 'flip' ? 100 : 150;
+  const pts = Math.round(base * (S.jumpTricks.length + 1) * (sketchy ? 0.5 : 1));
+  S.jumpTricks.push(t.type); S.pending += pts;
+  floater((t.type === 'flip' ? 'BACKFLIP' : 'TAILWHIP') + (sketchy ? ' (KRZYWO)' : '') + ' +' + pts, -62);
+  saveTut(t.type === 'flip' ? 2 : 3);
+  if (S.jumpTricks.length >= 2) saveTut(4);
+  S.trick = null; S.angle = 0;
+}
+function land(tr) {
+  if (S.trick) { if (S.trick.p < 0.85) { crash('TRIK NIEDOKOŃCZONY'); return; } finishTrick(true); }
+  S.onGround = true; S.hgt = tr.h; S.vy = 0; S.angle = -Math.atan(tr.slope); S.landT = 0.15;
+  S.score += S.pending; S.pending = 0;
+  if (S.launch && S.launch.k && (tr.kind === 'lander' || tr.kind === 'flat')) { S.vx = Math.min(520, S.vx + 6); S.cleared++; }
+  S.launch = null; S.lastClick = null;
+}
+function crash(reason) {
+  S.state = 'over'; S.reason = reason; S.overT = 0; S.trick = null;
+  if (S.score > hi) { hi = Math.floor(S.score); try { localStorage.setItem('dj_hi', hi); } catch (e) {} }
+}
+
+// ============ Input ============
+function click() {
+  if (S.state === 'idle') { S.state = 'run'; return; }
+  if (S.state === 'over') { if (S.overT > 0.45) { resetGame(); S.state = 'run'; } return; }
+  const now = S.time, tr = terrain(S.dist);
+  if (S.onGround) {
+    if (tr.kind === 'ramp') { const dtLip = (tr.k.x + tr.k.L - S.dist) / S.vx; launch(quality(dtLip), tr.k, dtLip); }
+    else { // bunny hop
+      S.onGround = false; S.vy = Math.sqrt(2 * T.g * 34); S.launchT = 0; S.launch = { k: null, clicked: true, q: 0, tLip: 0 }; S.jumpTricks = []; S.lastClick = null;
+      readout.innerHTML = `Bunny hop: wysokość 34 px, czas lotu ${(2 * S.vy / T.g).toFixed(2)} s · prędkość ${Math.round(S.vx)} px/s`;
+    }
+    return;
+  }
+  // airborne
+  if (S.launch && !S.launch.clicked && now - S.launch.tLip < 0.07) { // late click right after the lip
+    S.launch.clicked = true; S.launch.q = 0.9; S.vy = Math.max(S.vy, 0.9 * vyMax(S.launch.k)); rate(0.9, 0); return;
+  }
+  if (S.trick) {
+    if (S.trick.type === 'flip' && now - S.trick.t0 < 0.3) S.trick = { type: 'whip', p: 0, dur: T.whip, t0: S.trick.t0 };
+    return;
+  }
+  if (S.lastClick != null && now - S.lastClick < 0.3) { S.trick = { type: 'flip', p: 0, dur: T.flip, t0: now }; S.lastClick = null; }
+  else S.lastClick = now;
+}
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); canvas.focus({ preventScroll: true }); click(); });
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'Space' || e.code === 'ArrowUp') { if (e.target === document.body || e.target === canvas) { e.preventDefault(); click(); } }
+});
+
+// ============ Update ============
+function update(dt) {
+  S.time += dt; S.hintPulse += dt;
+  for (const f of S.floaters) f.t += dt;
+  S.floaters = S.floaters.filter(f => f.t < 1.2);
+  if (S.state === 'over') { S.overT += dt; return; }
+  if (S.state !== 'run') return;
+  S.dist += S.vx * dt; S.score += S.vx * dt / 45; S.wheel += S.vx * dt;
+  if (S.landT > 0) S.landT -= dt; S.launchT += dt;
+  for (const c of S.clouds) { c.x -= S.vx * dt * 0.3; if (c.x < -60) { c.x = W + 40 + Math.random() * 200; c.y = 40 + Math.random() * 90; } }
+  spawnKickers();
+  const tr = terrain(S.dist); S.tr = tr;
+  if (S.onGround) {
+    if (tr.kind === 'gap') { // rolled off the lip without pumping
+      const k = tr.k; S.onGround = false; S.vy = 0.35 * vyMax(k); S.hgt = k.H; S.launchT = 0;
+      S.launch = { k, clicked: false, q: 0.35, tLip: S.time }; S.jumpTricks = []; S.lastClick = null;
+    } else { S.hgt = tr.h; S.angle = -Math.atan(tr.slope); }
+  } else {
+    S.vy -= T.g * dt; S.hgt += S.vy * dt;
+    if (S.trick) { S.trick.p += dt / S.trick.dur; if (S.trick.p >= 1) finishTrick(false); }
+    if (S.trick && S.trick.type === 'flip') S.angle = -2 * Math.PI * S.trick.p;
+    else S.angle += (0 - S.angle) * Math.min(1, dt * 4);
+    if (S.launch && !S.launch.clicked && S.time - S.launch.tLip > 0.07 && !S.launch.rated) { S.launch.rated = true; floater('BEZ WYBICIA', -58); }
+    if (tr.kind === 'gap') { if (S.hgt <= 0) crash('DZIURA!'); }
+    else if (S.hgt <= tr.h) { if (tr.h - S.hgt > 10) crash('ZA NISKO — CASE'); else land(tr); }
+  }
+}
+// ============ Render ============
+const FONT = '"Press Start 2P", "Courier New", monospace';
+function text(str, x, y, size, align = 'left', alpha = 1) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = pal.i; ctx.font = `${size}px ${FONT}`; ctx.textBaseline = 'top'; ctx.textAlign = align;
+  ctx.fillText(str, Math.round(x), Math.round(y)); ctx.restore();
+}
+function pad5(n) { return String(Math.floor(n)).padStart(5, '0'); }
+function hash(i) { let h = (i * 2654435761) >>> 0; h ^= h >>> 13; h = (h * 1597334677) >>> 0; return h >>> 0; }
+
+function drawGround() {
+  ctx.fillStyle = pal.i;
+  // ground line, skipping gaps
+  let x = 0;
+  const gaps = S.kickers.map(k => [k.x + k.L + 2 - S.dist + PX, k.x + k.L + k.gap - S.dist + PX]).filter(g => g[1] > 0 && g[0] < W).sort((a, b) => a[0] - b[0]);
+  for (const g of gaps) { if (g[0] > x) ctx.fillRect(x, GY, Math.min(W, g[0]) - x, 1); x = Math.max(x, g[1]); }
+  if (x < W) ctx.fillRect(x, GY, W - x, 1);
+  // pebbles
+  const seg0 = Math.floor((S.dist - PX) / 48), seg1 = Math.floor((S.dist - PX + W) / 48);
+  for (let i = seg0; i <= seg1; i++) {
+    const h = hash(i); const wx = i * 48 + (h % 48); const sx = wx - S.dist + PX;
+    const tr = terrain(wx); if (tr.kind !== 'flat') continue;
+    ctx.fillRect(Math.round(sx), GY + 3 + (h >> 8) % 5, 1 + ((h >> 4) % 3), 1);
+  }
+}
+function drawKickers() {
+  for (const k of S.kickers) {
+    const sx = Math.round(k.x - S.dist + PX); if (sx > W || sx + k.total < 0) continue;
+    ctx.drawImage(k.img, sx, GY - k.img.height + 1);
+    if (tut === 0 && S.state === 'run') { // timing hint at lip
+      const lx = sx + k.L, ly = GY - k.H;
+      if (Math.floor(S.hintPulse * 4) % 2 === 0) { ctx.fillStyle = pal.i; ctx.fillRect(lx - 3, ly - 16, 5, 2); ctx.fillRect(lx - 2, ly - 14, 3, 2); ctx.fillRect(lx - 1, ly - 12, 1, 3); }
+      text(TUT_TEXT[0], lx, ly - 30, 8, 'center');
+    }
+  }
+}
+function drawClouds() { for (const c of S.clouds) blit(ctx, SPR.cloud, c.x, c.y); }
+function pickPose() {
+  if (S.onGround) { if (S.landT > 0) return 'crouch'; if (S.tr && S.tr.kind === 'ramp' && S.tr.t > 0.35) return 'crouch'; return 'stand'; }
+  if (S.trick) return S.trick.type;
+  if (S.launchT < 0.18) return 'extend';
+  return 'air';
+}
+function drawPlayer() {
+  const bike = SPR.bike[Math.floor(S.wheel / 40) % 2];
+  ctx.save(); ctx.translate(PX, GY - Math.round(S.hgt));
+  if (S.state === 'over') {
+    ctx.save(); ctx.translate(20, -12); ctx.rotate(-1.75); ctx.translate(0, 13); ctx.drawImage(bike.img, bike.x0, bike.y0); ctx.restore();
+    blit(ctx, SPR.rider.down, 0, 0);
+    ctx.restore(); return;
+  }
+  const pose = pickPose();
+  ctx.translate(0, -16); ctx.rotate(S.angle); ctx.translate(0, 16);
+  if (S.trick && S.trick.type === 'whip') {
+    const phi = 2 * Math.PI * S.trick.p; let c = Math.cos(phi); if (Math.abs(c) < 0.06) c = c < 0 ? -0.06 : 0.06;
+    const drawB = () => { ctx.save(); ctx.translate(12, -23); ctx.scale(c, 1); ctx.rotate(0.35 * Math.sin(phi)); ctx.translate(-12, 23); ctx.drawImage(bike.img, bike.x0, bike.y0); ctx.restore(); };
+    if (Math.sin(phi) > 0) { drawB(); blit(ctx, SPR.rider.whip, 0, 0); } else { blit(ctx, SPR.rider.whip, 0, 0); drawB(); }
+  } else { ctx.drawImage(bike.img, bike.x0, bike.y0); blit(ctx, SPR.rider[pose], 0, 0); }
+  ctx.restore();
+}
+function drawFloaters() { for (const f of S.floaters) text(f.text, f.x, f.y - f.t * 28, 8, 'center', Math.max(0, 1 - f.t / 1.2)); }
+function drawHUD() {
+  text(`HI ${pad5(hi)} ${pad5(S.score)}`, W - 16, 14, 11, 'right');
+  if (S.state === 'run' && !S.onGround && S.jumpTricks.length) text('×' + (S.jumpTricks.length + 1), 16, 14, 11);
+  if (S.state === 'run' && !S.onGround && S.launch && S.launch.k && S.launch.q >= 0.7 && tut >= 1 && tut <= 3 && S.launchT > 0.12) {
+    const idx = tut === 1 ? 1 : tut === 2 ? 2 : 3;
+    if (idx < 3 || S.launch.k.type === 'L') text(TUT_TEXT[idx], W / 2, 52, 9, 'center');
+  }
+}
+function drawRestartIcon(x, y) {
+  ctx.save(); ctx.strokeStyle = pal.i; ctx.fillStyle = pal.i; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, 14, -Math.PI * 0.35, Math.PI * 1.45); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 2, y - 20); ctx.lineTo(x + 14, y - 12); ctx.lineTo(x + 2, y - 4); ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function drawOverlay() {
+  if (S.state === 'idle') {
+    text('DIRT JUMPER', W / 2, 78, 18, 'center');
+    text('KLIKNIJ ALBO SPACJA, ABY RUSZYĆ', W / 2, 112, 9, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35);
+    text('1× KLIK PRZED WIERZCHOŁKIEM = SKOK   2× = BACKFLIP   3× = TAILWHIP', W / 2, 140, 7, 'center');
+  } else if (S.state === 'over') {
+    text('G A M E   O V E R', W / 2, 92, 13, 'center');
+    text(S.reason, W / 2, 118, 8, 'center');
+    drawRestartIcon(W / 2, 162);
+  }
+}
+function render() {
+  ctx.fillStyle = pal.bg; ctx.fillRect(0, 0, W, H);
+  drawClouds(); drawGround(); drawKickers(); drawPlayer(); drawFloaters(); drawHUD(); drawOverlay();
+}
+
+// ============ Loop & sizing ============
+function resize() {
+  const cssW = canvas.clientWidth || W; const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const scale = Math.max(1, Math.round(cssW * dpr / W * 2) / 2); // half-step scale keeps pixels even-ish
+  canvas.width = Math.round(W * scale); canvas.height = Math.round(H * scale);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0); ctx.imageSmoothingEnabled = false;
+}
+let last = 0;
+function frame(ts) {
+  if (!last) last = ts; let dt = (ts - last) / 1000; last = ts; if (dt > 0.05) dt = 0.05;
+  update(dt); render(); requestAnimationFrame(frame);
+}
+// ============ Panel: sliders ============
+const tuneEl = document.getElementById('tune');
+function saveTune() { try { localStorage.setItem('dj_tune', JSON.stringify(T)); } catch (e) {} }
+function fmt(key, v) { return key === 'flip' || key === 'whip' ? v.toFixed(2) : key === 'boost' ? v.toFixed(1) : String(Math.round(v)); }
+function buildTune() {
+  tuneEl.innerHTML = '';
+  for (const [key, label, min, max, step, unit] of TUNE_META) {
+    const id = 'tune-' + key;
+    const lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = label;
+    const inp = document.createElement('input'); inp.type = 'range'; inp.id = id; inp.min = min; inp.max = max; inp.step = step; inp.value = T[key];
+    const out = document.createElement('output'); out.htmlFor = id; out.textContent = fmt(key, T[key]) + ' ' + unit;
+    inp.addEventListener('input', () => { T[key] = +inp.value; out.textContent = fmt(key, T[key]) + ' ' + unit; if (S.state === 'idle') S.vx = T.v0; saveTune(); buildKickerPanel(); });
+    tuneEl.append(lab, inp, out);
+  }
+}
+document.getElementById('reset').addEventListener('click', () => { T = Object.assign({}, TUNE_DEF); saveTune(); buildTune(); buildKickerPanel(); if (S.state === 'idle') S.vx = T.v0; });
+
+// ============ Panel: sprite gallery ============
+const FRAMES = [
+  ['Jazda', (c, t) => { const b = SPR.bike[Math.floor(t * 8) % 2]; c.drawImage(b.img, b.x0, b.y0); blit(c, SPR.rider.stand, 0, 0); }],
+  ['Najazd (crouch)', c => { const b = SPR.bike[0]; c.save(); c.translate(0, -14); c.rotate(-0.42); c.translate(0, 14); c.drawImage(b.img, b.x0, b.y0); blit(c, SPR.rider.crouch, 0, 0); c.restore(); }],
+  ['Wybicie (extend)', c => { const b = SPR.bike[0]; c.save(); c.translate(0, -14); c.rotate(-0.25); c.translate(0, 14); c.drawImage(b.img, b.x0, b.y0); blit(c, SPR.rider.extend, 0, 0); c.restore(); }],
+  ['Lot', c => { const b = SPR.bike[1]; c.drawImage(b.img, b.x0, b.y0); blit(c, SPR.rider.air, 0, 0); }],
+  ['Backflip 2×', (c, t) => { const b = SPR.bike[0]; const p = (t / 1.6) % 1; c.save(); c.translate(0, -16); c.rotate(-2 * Math.PI * p); c.translate(0, 16); c.drawImage(b.img, b.x0, b.y0); blit(c, SPR.rider.flip, 0, 0); c.restore(); }],
+  ['Tailwhip 3×', (c, t) => { const b = SPR.bike[0]; const phi = 2 * Math.PI * ((t / 1.4) % 1); let k = Math.cos(phi); if (Math.abs(k) < 0.06) k = k < 0 ? -0.06 : 0.06;
+    const drawB = () => { c.save(); c.translate(12, -23); c.scale(k, 1); c.rotate(0.35 * Math.sin(phi)); c.translate(-12, 23); c.drawImage(b.img, b.x0, b.y0); c.restore(); };
+    if (Math.sin(phi) > 0) { drawB(); blit(c, SPR.rider.whip, 0, 0); } else { blit(c, SPR.rider.whip, 0, 0); drawB(); } }],
+  ['Crash', c => { const b = SPR.bike[0]; c.save(); c.translate(20, -12); c.rotate(-1.75); c.translate(0, 13); c.drawImage(b.img, b.x0, b.y0); c.restore(); blit(c, SPR.rider.down, 0, 0); }],
+];
+const galleryCtx = [];
+function buildGallery() {
+  const g = document.getElementById('gallery'); g.innerHTML = ''; galleryCtx.length = 0;
+  for (const [label, fn] of FRAMES) {
+    const wrap = document.createElement('div'); wrap.className = 'frame';
+    const cv = document.createElement('canvas'); cv.width = 75 * 3; cv.height = 70 * 3;
+    const sp = document.createElement('span'); sp.textContent = label; wrap.append(cv, sp); g.append(wrap);
+    galleryCtx.push([cv.getContext('2d'), fn]);
+  }
+}
+function drawGallery(t) {
+  for (const [c, fn] of galleryCtx) {
+    c.setTransform(3, 0, 0, 3, 0, 0); c.imageSmoothingEnabled = false; c.clearRect(0, 0, 75, 70);
+    c.fillStyle = pal.i; c.fillRect(4, 58, 67, 1);
+    c.save(); c.translate(37, 58); fn(c, t); c.restore();
+  }
+}
+
+// ============ Panel: kickers ============
+function buildKickerPanel() {
+  const box = document.getElementById('kickers'); box.innerHTML = '';
+  const rows = [];
+  for (const type of ['S', 'M', 'L']) {
+    const k = makeKicker(type, T.v0, false); renderKicker(k);
+    const cv = document.createElement('canvas'); cv.width = k.img.width + 20; cv.height = k.img.height + 16;
+    cv.style.width = Math.round(cv.width * 1.6) + 'px';
+    const c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+    c.drawImage(k.img, 10, 8); c.fillStyle = pal.i; c.fillRect(0, 8 + k.img.height - 1, 10, 1); c.fillRect(10 + k.img.width, 8 + k.img.height - 1, 10, 1);
+    const wrap = document.createElement('div'); wrap.className = 'frame';
+    const sp = document.createElement('span'); sp.textContent = `${type} · H ${k.H} px · dziura ${k.gap} px`;
+    wrap.append(sp, cv); box.append(wrap);
+    const T_air = 2 * vyMax(k) / T.g, hmax = k.H * T.boost;
+    rows.push([type, k.H, k.L, k.gap, Math.round(hmax), T_air.toFixed(2), Math.round(T.v0 * T_air), Math.floor(T_air / T.flip + 0.1), Math.floor(T_air / T.whip + 0.1)]);
+  }
+  const tbl = document.getElementById('ktable');
+  tbl.innerHTML = '<thead><tr><th>Kicker</th><th>H [px]</th><th>Najazd [px]</th><th>Dziura [px]</th><th>Lot max [px]</th><th>Czas lotu [s]</th><th>Dystans [px]</th><th>Backflipy</th><th>Tailwhipy</th></tr></thead>'
+    + '<tbody>' + rows.map(r => '<tr>' + r.map(v => `<td>${v}</td>`).join('') + '</tr>').join('') + '</tbody>';
+}
+
+// ============ Boot ============
+function rebuildAll() { readPalette(); buildSprites(); for (const k of S.kickers) renderKicker(k); buildKickerPanel(); }
+function start() {
+  readPalette(); buildSprites(); resetGame(); buildTune(); buildGallery(); buildKickerPanel(); resize();
+  window.addEventListener('resize', resize);
+  const mq = window.matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener('change', rebuildAll);
+  new MutationObserver(rebuildAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load(`11px ${FONT}`), document.fonts.load('20px VT323')]).catch(() => {});
+  let gt = 0; setInterval(() => { gt += 0.1; drawGallery(gt); }, 100);
+  requestAnimationFrame(frame);
+}
+if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start); else start();
+})();
+</script>

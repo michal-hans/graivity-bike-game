@@ -1,0 +1,142 @@
+<title>Dirt Jumper</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+  :root {
+    --bg: #f7f7f7;
+    --ink: #535353;
+    --ink-2: #8a8a8a;
+    --ink-3: #cfcfcf;
+    --hi: #ffffff;
+    --panel: #ededed;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #202124; --ink: #acacac; --ink-2: #7a7a7a; --ink-3: #3c3d41; --hi: #202124; --panel: #27282c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #202124; --ink: #acacac; --ink-2: #7a7a7a; --ink-3: #3c3d41; --hi: #202124; --panel: #27282c;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "VT323", "Courier New", monospace; font-size: 21px; line-height: 1.3;
+    padding-block: 0 48px; padding-inline: 16px;
+    -webkit-font-smoothing: none;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .stage { padding-block: 28px 8px; }
+  canvas#game {
+    display: block; width: 100%; max-width: 100%; aspect-ratio: 720 / 300;
+    touch-action: none; cursor: pointer; image-rendering: pixelated; image-rendering: crisp-edges;
+    outline: none;
+  }
+  canvas#game:focus-visible { outline: 2px dashed var(--ink-2); outline-offset: 4px; }
+  .hint-line {
+    font-family: "Press Start 2P", "Courier New", monospace; font-size: 9px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-align: center; margin: 0; text-transform: uppercase;
+  }
+  .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; margin-top: 28px; }
+  .col { border-top: 2px dashed var(--ink-3); padding-block: 14px 22px; min-width: 0; }
+  .wide { grid-column: 1 / -1; }
+  @media (max-width: 640px) { .panel { grid-template-columns: 1fr; gap: 0; } }
+  h2 {
+    font-family: "Press Start 2P", "Courier New", monospace; font-size: 11px; letter-spacing: 0.06em;
+    text-transform: uppercase; margin: 0 0 12px; color: var(--ink); text-wrap: balance;
+  }
+  h2 .step { color: var(--ink-2); margin-right: 8px; }
+  p, li { max-width: 62ch; }
+  p { margin: 0 0 10px; }
+  ul { margin: 0 0 10px; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  b { font-weight: 400; background: var(--ink); color: var(--bg); padding: 0 5px; }
+  .note { color: var(--ink-2); }
+  .muted { color: var(--ink-2); }
+  /* sliders */
+  .tune { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px; align-items: center; }
+  .tune label { white-space: nowrap; }
+  .tune output { font-variant-numeric: tabular-nums; min-width: 6ch; text-align: right; }
+  input[type=range] { width: 100%; accent-color: var(--ink); height: 20px; margin: 0; }
+  button {
+    font-family: inherit; font-size: 19px; background: transparent; color: var(--ink);
+    border: 2px solid var(--ink); padding: 2px 12px; cursor: pointer; margin-top: 10px;
+  }
+  button:hover { background: var(--ink); color: var(--bg); }
+  button:focus-visible { outline: 2px dashed var(--ink-2); outline-offset: 3px; }
+  #readout { margin-top: 12px; font-variant-numeric: tabular-nums; min-height: 3.9em; }
+  /* gallery */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .frame { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .frame canvas { width: 150px; max-width: 100%; aspect-ratio: 150/140; background: var(--panel); image-rendering: pixelated; }
+  .frame span { font-family: "Press Start 2P", "Courier New", monospace; font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-2); text-align: center; }
+  .kickers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 12px; }
+  .kickers canvas { max-width: 100%; background: var(--panel); image-rendering: pixelated; }
+  .kickers .frame { align-items: flex-start; }
+  /* table */
+  .tbl { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 3px 10px; border-bottom: 1px dotted var(--ink-3); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-family: "Press Start 2P", "Courier New", monospace; font-size: 8px; letter-spacing: 0.05em; color: var(--ink-2); text-transform: uppercase; }
+  ol.plan { padding-left: 26px; }
+  ol.plan li { margin-bottom: 6px; }
+  .done { text-decoration: none; }
+  .done::after { content: " ✓"; }
+  @media (prefers-reduced-motion: reduce) { .frame canvas { animation: none; } }
+</style>
+
+<main class="wrap">
+  <section class="stage">
+    <canvas id="game" width="720" height="300" tabindex="0" aria-label="Dirt Jumper — gra. Kliknij lub naciśnij spację."></canvas>
+    <p class="hint-line" id="hintline">1× klik na kickerze = skok · 2× w locie = backflip · 3× w locie = tailwhip</p>
+  </section>
+
+  <section class="panel">
+    <div class="col">
+      <h2>Sterowanie</h2>
+      <ul>
+        <li><b>1× klik</b> na najeździe, tuż przed wierzchołkiem kickera — wybicie. Im bliżej krawędzi, tym wyższy lot.</li>
+        <li><b>2× klik</b> w locie — backflip (obrót całego roweru z zawodnikiem).</li>
+        <li><b>3× klik</b> w locie — tailwhip (rower obraca się wokół kierownicy, zawodnik zostaje).</li>
+        <li>Po skończonym triku kolejne 2× / 3× — następny trik w tym samym locie. Drugi trik liczy się ×2, trzeci ×3.</li>
+        <li>Spacja albo strzałka w górę działają jak klik. Klik na płaskim to mały bunny hop.</li>
+      </ul>
+      <p class="note">Koniec gry: wpadniesz w dziurę za kickerem (za wczesne wybicie lub brak kliknięcia), wylądujesz w połowie obrotu, albo uderzysz w czoło lądowania.</p>
+    </div>
+
+    <div class="col">
+      <h2><span class="step">2</span>Fizyka — suwaki do testów</h2>
+      <div class="tune" id="tune"></div>
+      <button id="reset" type="button">Przywróć domyślne</button>
+      <div id="readout" class="muted">Ostatnie wybicie: —</div>
+    </div>
+
+    <div class="col wide">
+      <h2><span class="step">1</span>Grafika — klatki animacji</h2>
+      <p class="note">Jeden odcień tuszu jak w dino, siatka 1 px, sprite ~48×44 px. Zawodnik i rower to dwa osobne sprite'y, dzięki czemu tailwhip obraca sam rower.</p>
+      <div class="gallery" id="gallery"></div>
+    </div>
+
+    <div class="col wide">
+      <h2>Kickery — trzy rozmiary, losowany ±12%</h2>
+      <div class="kickers" id="kickers"></div>
+      <div class="tbl"><table id="ktable"></table></div>
+      <p class="note">Wysokość lotu = mnożnik × wysokość kickera przy idealnym wybiciu. Dziura ma 58% dystansu idealnego skoku, więc bezpiecznie przelatuje wybicie o jakości ≥ ok. 0,7 (kliknięcie w ostatnich ~200 ms najazdu).</p>
+    </div>
+
+    <div class="col wide">
+      <h2>Plan kolejnych kroków</h2>
+      <ol class="plan">
+        <li class="done">Grafika: sprite'y roweru, zawodnika (7 póz), kickerów S/M/L, chmur, ikony restartu.</li>
+        <li class="done">Fizyka wybicia: najazd po krzywej, jakość wybicia zależna od czasu do wierzchołka, dziura skalowana do rozmiaru kickera i prędkości.</li>
+        <li class="done">Triki w locie: backflip (2×), tailwhip (3×), zamiana flip→whip przy 3. kliknięciu, kombo w jednym locie, kara za niedokończony obrót.</li>
+        <li>Poziomy: sekwencje kickerów o rosnącej trudności (odcinki po 10 kickerów), podwójne kickery (step-up), zmienne tempo, wskazówki wygaszane po opanowaniu.</li>
+        <li>Punktacja: tabela rekordów lokalnie, mnożnik za serię czystych lądowań, bonus „perfect”, podsumowanie po przejeździe.</li>
+        <li>Offline: manifest PWA + service worker, czcionka pikselowa spakowana do pliku, dźwięki.</li>
+      </ol>
+    </div>
+  </section>
+</main>
