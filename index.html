@@ -65,7 +65,7 @@
   <section class="stage">
     <canvas id="game" width="720" height="330" tabindex="0" aria-label="Dirt Jumper. Kliknij lub naciśnij spację."></canvas>
     <div class="bar"><button id="mute" type="button">Dźwięk: wł</button><button id="fs" type="button">Pełny ekran</button></div>
-    <p class="hint-line">Klik przed krawędzią = wybicie · w locie: 1× barspin · 2× backflip · 3× tailwhip</p>
+    <p class="hint-line">Klik przed krawędzią = wybicie · w locie: 1× barspin · 2× backflip · 3× tailwhip · 4× 360 · 5× cashroll</p>
   </section>
 
   <section class="panel">
@@ -73,7 +73,8 @@
       <h2>Sterowanie</h2>
       <ul>
         <li><b>Klik</b> tuż przed krawędzią kickera — wybicie. Im bliżej krawędzi, tym wyższy lot. Za wcześnie albo bez kliknięcia wpadasz w dziurę.</li>
-        <li>W locie: <b>1× klik</b> barspin (50 pkt) · <b>2× klik</b> backflip (100) · <b>3× klik</b> tailwhip (150).</li>
+        <li>W locie: <b>1× klik</b> barspin (50 pkt) · <b>2× klik</b> backflip (100) · <b>3× klik</b> tailwhip (150) · <b>4× klik</b> 360 (200) · <b>5× klik</b> cashroll (300).</li>
+        <li>Klikaj szybko, kolejne kliknięcie w ciągu 250 ms podbija trik. Obrót liczy się od pierwszego kliknięcia, więc pięć kliknięć nie zjada czasu lotu. 360 i cashroll potrzebują dużego kickera.</li>
         <li>Klikaj w trakcie triku, żeby ustawić kolejny — drugi trik w locie liczy się ×2, trzeci ×3. Lądowanie w połowie obrotu to upadek.</li>
         <li>Co 10 kickerów nowy poziom: większe kickery, ciaśniej, szybciej. Seria 5 kickerów z trikiem daje +100.</li>
         <li>Spacja albo strzałka w górę działają jak klik. Po zmianie karty gra sama się zatrzymuje.</li>
@@ -90,7 +91,7 @@
       <ul>
         <li>Dystans: ok. 7 pkt na sekundę jazdy, jak w dino.</li>
         <li>Przeleciany kicker: <b>S 10</b> · <b>M 20</b> · <b>L 30</b>. Idealne wybicie +50.</li>
-        <li>Triki: barspin 50, backflip 100, tailwhip 150. Drugi trik w locie ×2, trzeci ×3, krzywe lądowanie ½.</li>
+        <li>Triki: barspin 50, backflip 100, tailwhip 150, 360 200, cashroll 300. Drugi trik w locie ×2, trzeci ×3, krzywe lądowanie ½.</li>
         <li>Kombo: kliknięcia w trakcie triku ustawiają następny w kolejce, startuje on w tej samej klatce, w której kończy się poprzedni. Bez przerwy na reakcję. Kolejkę też podbija się 2× / 3× kliknięciem.</li>
         <li>Lot: kicker M daje 12% więcej wysokości niż wynika z mnożnika, L o 20% więcej. Przy domyślnych ustawieniach: S 0,94 s, M 1,29 s, L 1,60 s, więc L mieści barspin + backflip albo dwa tailwhipy.</li>
         <li>Seria: każde 5 kolejnych kickerów z co najmniej jednym trikiem daje +100. Lądowanie bez triku przerywa serię.</li>
@@ -151,7 +152,7 @@
 (function () {
 'use strict';
 // ================= Tunables =================
-const TUNE_DEF = { g: 560, v0: 330, boost: 2.6, win: 80, gapF: 0.58, lip: 68, land: 5, bar: 0.45, flip: 0.80, whip: 0.65, chain: 250, tol: 0.85 };
+const TUNE_DEF = { g: 560, v0: 330, boost: 2.6, win: 80, gapF: 0.58, lip: 68, land: 5, bar: 0.45, flip: 0.80, whip: 0.65, spin: 0.90, cash: 1.10, chain: 250, tol: 0.85 };
 const TUNE_META = [
   ['g', 'Grawitacja', 400, 900, 10, 'px/s²'],
   ['v0', 'Prędkość startowa', 250, 450, 5, 'px/s'],
@@ -163,13 +164,15 @@ const TUNE_META = [
   ['bar', 'Czas barspina', 0.3, 0.8, 0.05, 's'],
   ['flip', 'Czas backflipu', 0.5, 1.2, 0.05, 's'],
   ['whip', 'Czas tailwhipa', 0.4, 1.0, 0.05, 's'],
+  ['spin', 'Czas 360', 0.6, 1.4, 0.05, 's'],
+  ['cash', 'Czas cashrolla', 0.8, 1.6, 0.05, 's'],
   ['chain', 'Okno na kolejny klik', 150, 400, 10, 'ms'],
   ['tol', 'Próg krzywego lądowania', 0.6, 0.95, 0.05, ''],
 ];
 let T = Object.assign({}, TUNE_DEF);
 try { Object.assign(T, JSON.parse(localStorage.getItem('dj5_tune') || '{}')); } catch (e) {}
 for (const k in TUNE_DEF) if (typeof T[k] !== 'number') T[k] = TUNE_DEF[k];
-const fmt = (k, v) => k === 'boost' || k === 'land' ? v.toFixed(1) : k === 'gapF' || k === 'bar' || k === 'flip' || k === 'whip' || k === 'tol' ? v.toFixed(2) : String(Math.round(v));
+const fmt = (k, v) => k === 'boost' || k === 'land' ? v.toFixed(1) : k === 'gapF' || k === 'bar' || k === 'flip' || k === 'whip' || k === 'spin' || k === 'cash' || k === 'tol' ? v.toFixed(2) : String(Math.round(v));
 
 // ================= Palette =================
 const pal = { i: '#535353', l: '#8a8a8a', w: '#ffffff', bg: '#f7f7f7', ok: '#3f7d4e', bad: '#a34a3a' };
@@ -302,8 +305,9 @@ const LEVELS = [
 const levelDef = i => LEVELS[Math.min(i, LEVELS.length - 1)];
 const levelSpeed = i => Math.min(520, levelDef(i).v + Math.max(0, i - LEVELS.length + 1) * 30);
 function pickType(i) { const w = levelDef(i).w, r = Math.random(); return r < w[0] ? 'S' : r < w[0] + w[1] ? 'M' : 'L'; }
-const TUT_TEXT = ['KLIK TUŻ PRZED KRAWĘDZIĄ', '1× KLIK W LOCIE = BARSPIN', '2× KLIK = BACKFLIP', '3× KLIK = TAILWHIP', 'KLIKAJ W TRAKCIE TRIKU = KOLEJKA NA KOMBO'];
-const TRICK = { bar: { name: 'BARSPIN', pts: 50, dur: () => T.bar }, flip: { name: 'BACKFLIP', pts: 100, dur: () => T.flip }, whip: { name: 'TAILWHIP', pts: 150, dur: () => T.whip } };
+const TUT_TEXT = ['KLIK TUŻ PRZED KRAWĘDZIĄ', '1× KLIK W LOCIE = BARSPIN', '2× KLIK = BACKFLIP', '3× KLIK = TAILWHIP', 'KLIKAJ W TRAKCIE TRIKU = KOLEJKA NA KOMBO', '4× KLIK = 360 · 5× KLIK = CASHROLL'];
+const TRICK = { bar: { name: 'BARSPIN', pts: 50, dur: () => T.bar }, flip: { name: 'BACKFLIP', pts: 100, dur: () => T.flip }, whip: { name: 'TAILWHIP', pts: 150, dur: () => T.whip }, spin: { name: '360', pts: 200, dur: () => T.spin }, cash: { name: 'CASHROLL', pts: 300, dur: () => T.cash } };
+const TRICK_ORDER = ['bar', 'flip', 'whip', 'spin', 'cash'];
 const tutOK = () => tut >= 1;
 const opts = { win: true, traj: true, num: false };
 
@@ -345,7 +349,7 @@ function noise(dur, vol = 0.12, f = 800) { const c = auCtx(); if (!c) return; co
 const SFX = {
   pump: () => tone(180, 120, 0.08, 'square', 0.04),
   launch: q => { if (q >= 0.97) { tone(660, 660, 0.08, 'square', 0.06); tone(880, 880, 0.08, 'square', 0.06, 0.08); tone(1320, 1320, 0.14, 'square', 0.06, 0.16); } else if (q >= 0.7) tone(300, 600, 0.15, 'square', 0.05); else tone(300, 200, 0.2, 'sawtooth', 0.04); },
-  trick: type => { if (type === 'bar') tone(700, 900, 0.1, 'square', 0.04); else if (type === 'flip') tone(200, 500, 0.5, 'triangle', 0.05); else { tone(900, 700, 0.12, 'square', 0.04); tone(900, 700, 0.12, 'square', 0.04, 0.16); } },
+  trick: type => { if (type === 'bar') tone(700, 900, 0.1, 'square', 0.04); else if (type === 'flip') tone(200, 500, 0.5, 'triangle', 0.05); else if (type === 'whip') { tone(900, 700, 0.12, 'square', 0.04); tone(900, 700, 0.12, 'square', 0.04, 0.16); } else if (type === 'spin') tone(300, 900, 0.7, 'sine', 0.05); else { tone(200, 500, 0.5, 'triangle', 0.05); tone(300, 900, 0.9, 'sine', 0.04); } },
   done: mult => { const k = Math.pow(mult, 0.3); tone(520 * k, 520 * k, 0.06, 'square', 0.05); tone(780 * k, 780 * k, 0.1, 'square', 0.05, 0.07); },
   land: () => noise(0.08, 0.1, 400),
   crash: () => { noise(0.35, 0.16, 600); tone(200, 60, 0.4, 'sawtooth', 0.06); },
@@ -380,7 +384,7 @@ function finishTrick(sketchy) {
   S.done.push(t.type); S.pending += pts; S.log.push({ type: t.type, pts, sketchy, p: Math.min(1, t.p) });
   floater(`${def.name}${mult > 1 ? ' ×' + mult : ''}${sketchy ? ' KRZYWO' : ''} +${pts}`, -66, sketchy ? 'l' : 'ok');
   stats.tricks = (stats.tricks || 0) + 1; $('sT').textContent = stats.tricks; SFX.done(mult);
-  saveTut(t.type === 'bar' ? 2 : t.type === 'flip' ? 3 : 4); if (S.done.length >= 2) saveTut(5);
+  saveTut(t.type === 'bar' ? 2 : t.type === 'flip' ? 3 : t.type === 'whip' ? 4 : 6); if (S.done.length >= 2) saveTut(5);
   S.trick = null; S.angle = 0;
   if (S.queue && !sketchy) { startTrick(S.queue.type); S.queue = null; } else S.queue = null;
 }
@@ -427,7 +431,7 @@ function click() {
     S.launch.rescued = true; S.launch.mode = 'late'; S.launch.q = 0.9; S.vy = Math.max(S.vy, 0.9 * vyMax(S.launch.k)); floater('W OSTATNIEJ CHWILI', -60, 'ok'); readoutLaunch(S.launch); return;
   }
   const now = S.time, chain = T.chain / 1000;
-  const upgrade = t => t === 'bar' ? 'flip' : t === 'flip' ? 'whip' : 'whip';
+  const upgrade = t => TRICK_ORDER[Math.min(TRICK_ORDER.length - 1, TRICK_ORDER.indexOf(t) + 1)];
   if (S.trick && !S.queue && now - S.lastClick < chain) { // kolejne kliknięcie w oknie: podbij bieżący trik
     S.trick = { type: upgrade(S.trick.type), p: 0, t0: S.trick.t0 }; S.lastClick = now; SFX.trick(S.trick.type); return;
   }
@@ -459,8 +463,10 @@ function update(dt) {
     else { S.hgt = tr.h; S.angle = -Math.min(0.8, Math.atan(tr.slope)); if (S.pump && S.time - S.pump.t > 0.6) S.pump = null; }
   } else {
     S.vy -= T.g * dt; S.hgt += S.vy * dt;
-    if (S.trick) { S.trick.p += dt / TRICK[S.trick.type].dur(); if (S.trick.p >= 1) finishTrick(false); }
-    if (S.trick && S.trick.type === 'flip') S.angle = -2 * Math.PI * S.trick.p; else S.angle += (0 - S.angle) * Math.min(1, dt * 3);
+    if (S.trick) { S.trick.p = (S.time - S.trick.t0) / TRICK[S.trick.type].dur(); if (S.trick.p >= 1) finishTrick(false); }
+    if (S.trick && S.trick.type === 'flip') S.angle = -2 * Math.PI * S.trick.p;
+    else if (S.trick && S.trick.type === 'cash') S.angle = 2 * Math.PI * S.trick.p;
+    else S.angle += (0 - S.angle) * Math.min(1, dt * 3);
     if (tr.kind === 'gap') { if (S.hgt <= 0) crash('DZIURA'); }
     else if (S.hgt <= tr.h) { if (tr.h - S.hgt > 10) crash('ZA NISKO — CZOŁO LĄDOWANIA'); else land(tr); }
   }
@@ -508,6 +514,9 @@ function drawBikeTrick(spoke) {
   if (t && t.type === 'whip') { const phi = 2 * Math.PI * t.p; let k = Math.cos(phi); if (Math.abs(k) < 0.06) k = k < 0 ? -0.06 : 0.06;
     const drawB = () => { ctx.save(); ctx.translate(11, -27); ctx.scale(k, 1); ctx.rotate(0.35 * Math.sin(phi)); ctx.translate(-11, 27); bikeFull(spoke); ctx.restore(); };
     if (Math.sin(phi) > 0) { drawB(); blit(ctx, SPR.rider.whip, 0, 0); } else { blit(ctx, SPR.rider.whip, 0, 0); drawB(); } return; }
+  if (t && (t.type === 'spin' || t.type === 'cash')) { const phi = 2 * Math.PI * t.p; let k = Math.cos(phi); if (Math.abs(k) < 0.08) k = k < 0 ? -0.08 : 0.08;
+    ctx.save(); ctx.scale(k, 1); bikeFull(spoke); blit(ctx, SPR.rider[t.type === 'spin' ? 'air' : 'flip'], 0, 0); ctx.restore();
+    if (t.type === 'spin' && Math.abs(Math.cos(phi)) < 0.25) { ctx.fillStyle = pal.l; ctx.fillRect(-1, -44, 1, 40); } return; }
   bikeFull(spoke); blit(ctx, SPR.rider[pickPose()], 0, 0);
 }
 function bikeFull(spoke) { const b = SPR.bike[spoke], f = SPR.front[spoke]; ctx.drawImage(b.img, b.x0, b.y0); ctx.drawImage(f.img, f.x0, f.y0); }
@@ -527,12 +536,12 @@ function drawHUD() {
       ctx.fillStyle = pal.l; ctx.fillRect(W - 136, 46, 120, 3); ctx.fillStyle = p >= T.tol ? pal.ok : pal.i; ctx.fillRect(W - 136, 46, Math.round(120 * p), 3); ctx.fillStyle = pal.i; ctx.fillRect(W - 136 + Math.round(120 * T.tol), 44, 1, 7); }
     if (S.queue) text(`NASTĘPNY: ${TRICK[S.queue.type].name}`, W - 16, S.trick ? 58 : 32, 7, 'right', 1, pal.l);
     if (S.done.length) text(`KOMBO ×${S.done.length + 1}  +${S.pending}`, W - 16, S.queue ? 72 : 58, 8, 'right', 1, pal.ok);
-    if (S.launch && S.launch.k && S.launch.q >= 0.7 && tut >= 1 && tut <= 4 && S.launchT > 0.1) { const idx = tut; if (idx < 4 || S.launch.k.type !== 'S') text(TUT_TEXT[idx], W / 2, 52, 9, 'center'); }
+    if (S.launch && S.launch.k && S.launch.q >= 0.7 && tut >= 1 && tut <= 5 && S.launchT > 0.1) { const idx = tut; if (idx < 4 || (idx === 4 && S.launch.k.type !== 'S') || (idx === 5 && S.launch.k.type === 'L')) text(TUT_TEXT[idx], W / 2, 52, 9, 'center'); }
   }
 }
 function drawOverlay() {
   if (S.state === 'idle') { text('DIRT JUMPER', W / 2, 60, 16, 'center');
-    if (records.length) { text('NAJLEPSZE PRZEJAZDY', W / 2, 168, 7, 'center', 1, pal.l); records.slice(0, 3).forEach((r, i) => text(`${i + 1}  ${pad5(r.score)}  POZIOM ${r.level}  ${r.cleared} KICK.  ${r.tricks} TRIKI`, W / 2, 182 + i * 12, 7, 'center', 1, pal.l)); } text('KLIKNIJ ALBO SPACJA, ABY RUSZYĆ', W / 2, 96, 9, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35); text('KLIK PRZED KRAWĘDZIĄ = WYBICIE   W LOCIE: 1× BARSPIN  2× BACKFLIP  3× TAILWHIP', W / 2, 122, 7, 'center'); }
+    if (records.length) { text('NAJLEPSZE PRZEJAZDY', W / 2, 168, 7, 'center', 1, pal.l); records.slice(0, 3).forEach((r, i) => text(`${i + 1}  ${pad5(r.score)}  POZIOM ${r.level}  ${r.cleared} KICK.  ${r.tricks} TRIKI`, W / 2, 182 + i * 12, 7, 'center', 1, pal.l)); } text('KLIKNIJ ALBO SPACJA, ABY RUSZYĆ', W / 2, 96, 9, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35); text('KLIK PRZED KRAWĘDZIĄ = WYBICIE   W LOCIE: 1× BARSPIN  2× BACKFLIP  3× TAILWHIP  4× 360  5× CASHROLL', W / 2, 122, 7, 'center'); }
   else if (S.state === 'pause') { text('P A U Z A', W / 2, 92, 13, 'center'); text('KLIKNIJ, ABY WRÓCIĆ', W / 2, 118, 8, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35); }
   else if (S.state === 'over') { text('G A M E   O V E R', W / 2, 30, 13, 'center'); text(S.reason, W / 2, 52, 8, 'center', 1, pal.bad);
     const lvl = Math.floor(S.cleared / PER_LEVEL) + 1;
