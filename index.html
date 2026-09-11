@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -34,6 +34,7 @@
   .panel { display:grid; grid-template-columns:1fr 1fr; gap:0 32px; margin-top:26px; }
   .col { border-top:2px dashed var(--ink-3); padding-block:14px 22px; min-width:0; }
   .wide { grid-column:1 / -1; }
+  .lang-pl[hidden], .lang-en[hidden] { display:none; }
   #dev { display:contents; } #dev[hidden] { display:none; }
   @media (max-width:640px) { .panel { grid-template-columns:1fr; gap:0; } }
   h1 { font-family:"Press Start 2P","Courier New",monospace; font-size:14px; letter-spacing:.04em; margin:0 0 12px; text-wrap:balance; }
@@ -63,13 +64,24 @@
 <body>
 <main class="wrap">
   <section class="stage">
-    <canvas id="game" width="720" height="330" tabindex="0" aria-label="Dirt Jumper. Kliknij lub naciśnij spację."></canvas>
-    <div class="bar"><button id="mute" type="button">Dźwięk: wł</button><button id="fs" type="button">Pełny ekran</button></div>
-    <p class="hint-line">Klik przed krawędzią = wybicie · w locie: 1× barspin · 2× tailwhip · 3× backflip · 4× flip whip · 5× cashroll</p>
+    <canvas id="game" width="720" height="330" tabindex="0" aria-label="Dirt Jumper. Click or press space."></canvas>
+    <div class="bar"><button id="mute" type="button">Sound: on</button><button id="fs" type="button">Fullscreen</button><button id="lang" type="button" aria-label="Language">Polski</button></div>
+    <p class="hint-line" id="hintline">Click before the lip = pop · in the air: 1× barspin · 2× tailwhip · 3× backflip · 4× flip whip · 5× cashroll</p>
   </section>
 
   <section class="panel">
-    <div class="col wide">
+    <div class="col wide lang-en">
+      <h2>Controls</h2>
+      <ul>
+        <li><b>Click</b> right before the kicker's lip to pop. The closer to the lip, the higher you fly. Too early, or no click, and you drop into the gap.</li>
+        <li>In the air: <b>1× click</b> barspin (50 pts) · <b>2× click</b> tailwhip (100) · <b>3× click</b> backflip (150) · <b>4× click</b> flip whip, a backflip with a tailwhip (200) · <b>5× click</b> cashroll, a backflip with a 360 (300).</li>
+        <li>Click fast: every click within 250 ms upgrades the trick. Rotation counts from the first click, so five clicks don't eat your air time. Flip whip and cashroll need a big kicker.</li>
+        <li>Click during a trick to queue the next one. The second trick in one flight counts ×2, the third ×3. Landing mid-rotation is a crash.</li>
+        <li>Every 10 kickers a new level: bigger kickers, tighter spacing, more speed (up to 640 px/s). Step-ups appear from level 5, the pop window narrows from level 6. Step-up: the landing sits above the kicker's lip, so you need a near-perfect pop, and after a short table there's a drop you can trick off too. A streak of 5 kickers with a trick gives +100.</li>
+        <li>Space or the up arrow work like a click. When you switch tabs, the game pauses itself.</li>
+      </ul>
+    </div>
+    <div class="col wide lang-pl">
       <h2>Sterowanie</h2>
       <ul>
         <li><b>Klik</b> tuż przed krawędzią kickera — wybicie. Im bliżej krawędzi, tym wyższy lot. Za wcześnie albo bez kliknięcia wpadasz w dziurę.</li>
@@ -310,6 +322,34 @@ let tut = 0; try { tut = +localStorage.getItem('dj5_tut') || 0; } catch (e) {}
 const saveTut = n => { if (n > tut) { tut = n; try { localStorage.setItem('dj5_tut', tut); } catch (e) {} } };
 let records = []; try { records = JSON.parse(localStorage.getItem('dj5_records') || '[]'); } catch (e) {}
 const PER_LEVEL = 10;
+// ================= Języki =================
+const I18N = {
+  en: {
+    levels: ['WARM-UP · S ONLY', 'S + M', 'FIRST BIG ONES', 'M + L, TIGHTER', 'MOSTLY L · FIRST STEP-UPS', 'PRO LINE · NARROWER WINDOW', 'MORE STEP-UPS', 'FAST', 'VERY FAST', 'LIMIT'],
+    tut: ['CLICK RIGHT BEFORE THE LIP', '1× CLICK IN THE AIR = BARSPIN', '2× CLICK = TAILWHIP', '3× CLICK = BACKFLIP', 'CLICK DURING A TRICK = QUEUE A COMBO', '4× CLICK = FLIP WHIP · 5× CLICK = CASHROLL'],
+    perfect: 'PERFECT +50', good: 'GOOD', early: 'TOO EARLY', nopump: 'NO POP', late: 'LAST MOMENT', sketchy: ' SKETCHY', drop: 'DROP', stepUp: 'STEP-UP',
+    streak: n => `STREAK ${n} +100`, lvlDone: (l, b) => `LEVEL ${l} COMPLETE +${b}`, lvlNext: (l, n) => `LEVEL ${l}: ${n}`, tooEarlyHop: 'TOO EARLY, CLICK CLOSER TO THE LIP',
+    gap: 'GAP', face: 'TOO LOW — LANDING FACE', unfinished: (n, p) => `UNFINISHED TRICK (${n} ${p}%)`,
+    level: 'LEVEL', streakHud: 'STREAK', next: 'NEXT: ', combo: 'COMBO', start: 'CLICK OR SPACE TO RIDE', hint1: 'CLICK BEFORE THE LIP = POP', hint2: 'IN THE AIR: 1× BARSPIN  2× TAILWHIP  3× BACKFLIP  4× FLIP WHIP  5× CASHROLL',
+    best: 'BEST RUNS', kick: 'KICK.', tricks: 'TRICKS', pause: 'P A U S E D', resume: 'CLICK TO RESUME', over: 'G A M E   O V E R', score: 'SCORE', newHi: '  NEW RECORD!', place: '  PLACE',
+    summary: (l, c, t, k, kp, tp, bp) => `LEVEL ${l} · KICKERS ${c} · TRICKS ${t} · COMBO ×${k} · KICKERS +${kp} TRICKS +${tp} BONUSES +${bp}`, hdr: ['#', 'SCORE', 'LEVEL', 'KICKERS', 'TRICKS', 'COMBO'],
+    sound: ['Sound: on', 'Sound: off'], fs: 'Fullscreen', langBtn: 'Polski', hintLine: 'Click before the lip = pop · in the air: 1× barspin · 2× tailwhip · 3× backflip · 4× flip whip · 5× cashroll', aria: 'Dirt Jumper. Click or press space.',
+  },
+  pl: {
+    levels: ['ROZGRZEWKA · TYLKO S', 'S + M', 'PIERWSZE DUŻE', 'M + L, CIAŚNIEJ', 'GŁÓWNIE L · PIERWSZE STEP-UPY', 'PRO LINE · WĘŻSZE OKNO', 'WIĘCEJ STEP-UPÓW', 'SZYBKO', 'BARDZO SZYBKO', 'LIMIT'],
+    tut: ['KLIK TUŻ PRZED KRAWĘDZIĄ', '1× KLIK W LOCIE = BARSPIN', '2× KLIK = TAILWHIP', '3× KLIK = BACKFLIP', 'KLIKAJ W TRAKCIE TRIKU = KOLEJKA NA KOMBO', '4× KLIK = FLIP WHIP · 5× KLIK = CASHROLL'],
+    perfect: 'PERFECT +50', good: 'DOBRZE', early: 'ZA WCZEŚNIE', nopump: 'BEZ WYBICIA', late: 'W OSTATNIEJ CHWILI', sketchy: ' KRZYWO', drop: 'DROP', stepUp: 'STEP-UP',
+    streak: n => `SERIA ${n} +100`, lvlDone: (l, b) => `POZIOM ${l} UKOŃCZONY +${b}`, lvlNext: (l, n) => `POZIOM ${l}: ${n}`, tooEarlyHop: 'ZA WCZEŚNIE, KLIKNIJ BLIŻEJ KRAWĘDZI',
+    gap: 'DZIURA', face: 'ZA NISKO — CZOŁO LĄDOWANIA', unfinished: (n, p) => `TRIK NIEDOKOŃCZONY (${n} ${p}%)`,
+    level: 'POZIOM', streakHud: 'SERIA', next: 'NASTĘPNY: ', combo: 'KOMBO', start: 'KLIKNIJ ALBO SPACJA, ABY RUSZYĆ', hint1: 'KLIK PRZED KRAWĘDZIĄ = WYBICIE', hint2: 'W LOCIE: 1× BARSPIN  2× TAILWHIP  3× BACKFLIP  4× FLIP WHIP  5× CASHROLL',
+    best: 'NAJLEPSZE PRZEJAZDY', kick: 'KICK.', tricks: 'TRIKI', pause: 'P A U Z A', resume: 'KLIKNIJ, ABY WRÓCIĆ', over: 'G A M E   O V E R', score: 'WYNIK', newHi: '  NOWY REKORD!', place: '  MIEJSCE',
+    summary: (l, c, t, k, kp, tp, bp) => `POZIOM ${l} · KICKERY ${c} · TRIKI ${t} · KOMBO ×${k} · KICKERY +${kp} TRIKI +${tp} BONUSY +${bp}`, hdr: ['#', 'WYNIK', 'POZIOM', 'KICKERY', 'TRIKI', 'KOMBO'],
+    sound: ['Dźwięk: wł', 'Dźwięk: wył'], fs: 'Pełny ekran', langBtn: 'English', hintLine: 'Klik przed krawędzią = wybicie · w locie: 1× barspin · 2× tailwhip · 3× backflip · 4× flip whip · 5× cashroll', aria: 'Dirt Jumper. Kliknij lub naciśnij spację.',
+  },
+};
+let lang = 'en'; try { lang = localStorage.getItem('dj5_lang') === 'pl' ? 'pl' : 'en'; } catch (e) {}
+const L = () => I18N[lang];
+const levelName = i => L().levels[Math.min(i, I18N.en.levels.length - 1)];
 // poziomy: udział S/M/L, odstęp płaski [min,max], prędkość docelowa, nazwa
 const LEVELS = [
   // w: udział S/M/L, flat: płaski odcinek [min,max] px, v: prędkość px/s, win: okno perfect ms, far: koniec okna ms, step: szansa na step-up
@@ -329,7 +369,7 @@ const levelSpeed = i => Math.min(640, levelDef(i).v + Math.max(0, i - LEVELS.len
 const winFor = i => levelDef(i).win / 1000 * (T.win / 80); // suwak „okno perfect” skaluje wszystkie poziomy
 const farFor = i => levelDef(i).far / 1000 * (T.win / 80);
 function pickType(i) { const w = levelDef(i).w, r = Math.random(); return r < w[0] ? 'S' : r < w[0] + w[1] ? 'M' : 'L'; }
-const TUT_TEXT = ['KLIK TUŻ PRZED KRAWĘDZIĄ', '1× KLIK W LOCIE = BARSPIN', '2× KLIK = TAILWHIP', '3× KLIK = BACKFLIP', 'KLIKAJ W TRAKCIE TRIKU = KOLEJKA NA KOMBO', '4× KLIK = FLIP WHIP · 5× KLIK = CASHROLL'];
+// teksty wskazówek: L().tut
 const TRICK = { bar: { name: 'BARSPIN', pts: 50, dur: () => T.bar }, whip: { name: 'TAILWHIP', pts: 100, dur: () => T.whip }, flip: { name: 'BACKFLIP', pts: 150, dur: () => T.flip }, fw: { name: 'FLIP WHIP', pts: 200, dur: () => T.fw }, cash: { name: 'CASHROLL', pts: 300, dur: () => T.cash } };
 const TRICK_ORDER = ['bar', 'whip', 'flip', 'fw', 'cash'];
 const ROT = new Set(['flip', 'fw', 'cash']);
@@ -391,7 +431,7 @@ const SFX = {
   level: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, 'square', 0.05, i * 0.09)),
   streak: () => { tone(440, 880, 0.12, 'square', 0.05); tone(880, 880, 0.15, 'square', 0.05, 0.12); },
 };
-function setMute(m) { AU.muted = m; try { localStorage.setItem('dj5_mute', m ? '1' : '0'); } catch (e) {} $('mute').textContent = m ? 'Dźwięk: wył' : 'Dźwięk: wł'; $('mute').setAttribute('aria-pressed', m ? 'true' : 'false'); }
+function setMute(m) { AU.muted = m; try { localStorage.setItem('dj5_mute', m ? '1' : '0'); } catch (e) {} $('mute').textContent = L().sound[m ? 1 : 0]; $('mute').setAttribute('aria-pressed', m ? 'true' : 'false'); }
 function floater(text, dy = -54, col = 'i') { S.floaters.push({ text, x: PX, y: GY - S.hgt + dy, t: 0, col }); }
 function readoutLaunch(l) {
   const q = l.q, k = l.k, air = 2 * S.vy / T.g, distA = S.airVx * air, hmax = S.vy * S.vy / (2 * T.g);
@@ -410,14 +450,14 @@ function doLaunch(k, q, mode, dt) {
   S.launch = { k, q, mode, dt, tLip: S.time, rescued: false }; S.pump = null;
   S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.clicks = 0; S.lastClick = -9;
   if (mode !== 'none') SFX.launch(q); else tone(240, 160, 0.15, 'sawtooth', 0.03);
-  if (mode !== 'none') { floater(q >= 0.97 ? 'PERFECT +50' : q >= 0.7 ? 'DOBRZE' : 'ZA WCZEŚNIE', -60, q >= 0.7 ? 'ok' : 'bad'); if (q >= 0.97) S.score += 50; if (q >= 0.7) saveTut(1); }
-  else floater('BEZ WYBICIA', -60, 'bad');
+  if (mode !== 'none') { floater(q >= 0.97 ? L().perfect : q >= 0.7 ? L().good : L().early, -60, q >= 0.7 ? 'ok' : 'bad'); if (q >= 0.97) S.score += 50; if (q >= 0.7) saveTut(1); }
+  else floater(L().nopump, -60, 'bad');
   readoutLaunch(S.launch);
 }
 function finishTrick(sketchy) {
   const t = S.trick, def = TRICK[t.type], mult = S.done.length + 1, pts = Math.round(def.pts * mult * (sketchy ? 0.5 : 1));
   S.done.push(t.type); S.pending += pts; S.log.push({ type: t.type, pts, sketchy, p: Math.min(1, t.p) });
-  floater(`${def.name}${mult > 1 ? ' ×' + mult : ''}${sketchy ? ' KRZYWO' : ''} +${pts}`, -66, sketchy ? 'l' : 'ok');
+  floater(`${def.name}${mult > 1 ? ' ×' + mult : ''}${sketchy ? L().sketchy : ''} +${pts}`, -66, sketchy ? 'l' : 'ok');
   stats.tricks = (stats.tricks || 0) + 1; $('sT').textContent = stats.tricks; SFX.done(mult);
   saveTut(t.type === 'bar' ? 2 : t.type === 'whip' ? 3 : t.type === 'flip' ? 4 : 6); if (S.done.length >= 2) saveTut(5);
   S.trick = null; S.angle = 0;
@@ -427,14 +467,14 @@ function startTrick(type) { S.trick = { type, p: 0, t0: S.time, rotA: 0, rotT: S
 function land(tr) {
   S.queue = null;
   if (S.trick && S.time - S.trick.t0 < T.bar) { S.trick = null; S.angle = 0; } // trik zaczęty później niż czas barspina przed ziemią nie mógł się domknąć: anuluj bez kary
-  if (S.trick) { if (S.trick.p < T.tol) { crash(`TRIK NIEDOKOŃCZONY (${TRICK[S.trick.type].name} ${Math.round(S.trick.p * 100)}%)`); return; } finishTrick(S.trick.p < 1); }
+  if (S.trick) { if (S.trick.p < T.tol) { crash(L().unfinished(TRICK[S.trick.type].name, Math.round(S.trick.p * 100))); return; } finishTrick(S.trick.p < 1); }
   S.onGround = true; S.hgt = tr.h; S.vy = 0; S.angle = -Math.atan(tr.slope); S.landT = 0.15; SFX.land();
   if (S.launch) { S.score += S.pending; S.tPts += S.pending; if (S.launch.k) readoutTricks(); S.pending = 0; }
   if (S.launch && S.launch.k && tr.kind !== 'ramp' && (tr.kind === 'lander' || tr.kind === 'table' || tr.k !== S.launch.k)) {
     S.tricks += S.done.length; S.bestCombo = Math.max(S.bestCombo, S.done.length);
-    if (S.done.length) { S.streak++; if (S.streak % 5 === 0) { S.score += 100; S.bPts += 100; floater(`SERIA ${S.streak} +100`, -80, 'ok'); SFX.streak(); } } else S.streak = 0;
+    if (S.done.length) { S.streak++; if (S.streak % 5 === 0) { S.score += 100; S.bPts += 100; floater(L().streak(S.streak), -80, 'ok'); SFX.streak(); } } else S.streak = 0;
     const next = S.cleared + 1;
-    if (next % PER_LEVEL === 0) { const lvl = next / PER_LEVEL, bonus = 200 * lvl; S.score += bonus; S.bPts += bonus; S.banner = { text: `POZIOM ${lvl} UKOŃCZONY +${bonus}`, sub: `POZIOM ${lvl + 1}: ${levelDef(lvl).name}`, t: 0 }; SFX.level(); }
+    if (next % PER_LEVEL === 0) { const lvl = next / PER_LEVEL, bonus = 200 * lvl; S.score += bonus; S.bPts += bonus; S.banner = { text: L().lvlDone(lvl, bonus), sub: L().lvlNext(lvl + 1, levelName(lvl)), t: 0 }; SFX.level(); }
   }
   if (S.launch && S.launch.k && tr.kind !== 'ramp') { const k = S.launch.k; if (tr.kind === 'lander' || tr.kind === 'table' || tr.k !== k) { const p = { S: 10, M: 20, L: 30 }[k.type]; S.score += p; S.kPts += p; S.cleared++; stats.cleared++; $('sC').textContent = stats.cleared; } }
   S.launch = null;
@@ -459,13 +499,13 @@ function click() {
   if (S.onGround) {
     const nl = nextLip(); const dt = nl ? (nl.lx - S.dist) / S.vx : 9;
     if (nl && dt < 0.42 && tr.kind !== 'gap') { S.pump = { t: S.time, k: nl.k, dt }; SFX.pump(); return; } // napompowanie
-    if (nl && dt < 0.9) { floater('ZA WCZEŚNIE, KLIKNIJ BLIŻEJ KRAWĘDZI', -50, 'l'); return; } // hop doniósłby rower na najazd i przez krawędź bez pompowania
+    if (nl && dt < 0.9) { floater(L().tooEarlyHop, -50, 'l'); return; } // hop doniósłby rower na najazd i przez krawędź bez pompowania
     S.onGround = false; S.vy = Math.sqrt(2 * T.g * 34); S.launchT = 0; S.airVx = S.vx; S.launch = { k: null, q: 0, mode: 'hop' }; S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.lastClick = -9;
     $('readout').innerHTML = `Bunny hop na płaskim: 34 px, lot ${(2 * S.vy / T.g).toFixed(2)} s. Najbliższa krawędź za ${nl ? Math.round(dt * 1000) + ' ms' : '—'}, za daleko na pompowanie (limit 420 ms).`;
     return;
   }
   if (S.launch && S.launch.k && S.launch.mode === 'none' && !S.launch.rescued && S.time - S.launch.tLip < winFor(S.launch.k.lvl || 0)) {
-    S.launch.rescued = true; S.launch.mode = 'late'; S.launch.q = 0.9; S.vy = Math.max(S.vy, 0.9 * vyMax(S.launch.k)); S.airVx = airSpeed(S.vx, 0.9); floater('W OSTATNIEJ CHWILI', -60, 'ok'); readoutLaunch(S.launch); return;
+    S.launch.rescued = true; S.launch.mode = 'late'; S.launch.q = 0.9; S.vy = Math.max(S.vy, 0.9 * vyMax(S.launch.k)); S.airVx = airSpeed(S.vx, 0.9); floater(L().late, -60, 'ok'); readoutLaunch(S.launch); return;
   }
   const now = S.time, chain = T.chain / 1000;
   const upgrade = t => TRICK_ORDER[Math.min(TRICK_ORDER.length - 1, TRICK_ORDER.indexOf(t) + 1)];
@@ -505,7 +545,7 @@ function update(dt) {
   if (S.onGround) {
     if (tr.kind === 'gap') { const k = tr.k; if (S.pump && S.pump.k === k) { const d = S.time - S.pump.t; doLaunch(k, quality(d, k.lvl || 0), 'pump', d); } else doLaunch(k, 0.35, 'none', 0); }
     else if (prevTr && prevTr.part && tr.part && prevTr.part !== tr.part && prevTr.k === tr.k && prevTr.part.h1 !== undefined && tr.part.h0 !== undefined && prevTr.part.h1 - tr.part.h0 > 6) { // drop: uskok w dół między odcinkami, lot bez wybicia, triki dozwolone
-      S.onGround = false; S.vy = 0; S.airVx = S.vx; S.launchT = 0.2; S.launch = { k: null, q: 0, mode: 'drop' }; S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.lastClick = -9; floater('DROP', -60, 'l');
+      S.onGround = false; S.vy = 0; S.airVx = S.vx; S.launchT = 0.2; S.launch = { k: null, q: 0, mode: 'drop' }; S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.lastClick = -9; floater(L().drop, -60, 'l');
     }
     else { S.hgt = tr.h; S.angle = -Math.min(0.8, Math.atan(tr.slope)); if (S.pump && S.time - S.pump.t > 0.6) S.pump = null; }
   } else {
@@ -513,7 +553,7 @@ function update(dt) {
     if (S.trick) { S.trick.p = (S.time - S.trick.t0) / TRICK[S.trick.type].dur(); if (S.trick.p >= 1) finishTrick(false); }
     if (S.trick && ROT.has(S.trick.type)) S.angle = -2 * Math.PI * rotTurns(S.trick);
     else S.angle += (0 - S.angle) * Math.min(1, dt * 3);
-    if (tr.kind === 'gap') { if (S.hgt <= 0) crash('DZIURA'); }
+    if (tr.kind === 'gap') { if (S.hgt <= 0) crash(L().gap); }
     else if (S.hgt <= tr.h) {
       // czoło: czy w tej klatce przekroczono początek odcinka z pionowym czołem poniżej jego górnej krawędzi?
       let cased = false;
@@ -524,7 +564,7 @@ function update(dt) {
           if (tr.part.h0 > bottom + 1) { const f = (faceX - prevDist) / Math.max(1e-6, S.dist - prevDist); const hAt = prevHgt + (S.hgt - prevHgt) * f; if (hAt < tr.part.h0 - 4) cased = true; }
         }
       }
-      if (cased) crash('ZA NISKO — CZOŁO LĄDOWANIA'); else land(tr);
+      if (cased) crash(L().face); else land(tr);
     }
   }
 }
@@ -556,9 +596,9 @@ function drawKickers() {
       ctx.fillStyle = pal.i;
     }
     if (opts.num) text(`${k.type} H${k.H} D${k.gap}`, lx - 4, ly - 26, 7, 'right', 0.8, pal.l);
-    if (k.stepUp) text('STEP-UP', lx - 2, ly - 12, 6, 'right', 1, pal.l);
-    if (k.variant === 'step') { const t = k.parts[3]; text('DROP', x0 + t.x1, GY - t.h1 - 12, 6, 'center', 1, pal.l); }
-    if (!tutOK() && S.state === 'run') { if (Math.floor(S.pulse * 4) % 2 === 0) { ctx.fillStyle = pal.i; ctx.fillRect(lx - 3, ly - 16, 5, 2); ctx.fillRect(lx - 2, ly - 14, 3, 2); ctx.fillRect(lx - 1, ly - 12, 1, 3); } text('KLIK TUŻ PRZED KRAWĘDZIĄ', lx, ly - 30, 8, 'center'); }
+    if (k.stepUp) text(L().stepUp, lx - 2, ly - 12, 6, 'right', 1, pal.l);
+    if (k.variant === 'step') { const t = k.parts[3]; text(L().drop, x0 + t.x1, GY - t.h1 - 12, 6, 'center', 1, pal.l); }
+    if (!tutOK() && S.state === 'run') { if (Math.floor(S.pulse * 4) % 2 === 0) { ctx.fillStyle = pal.i; ctx.fillRect(lx - 3, ly - 16, 5, 2); ctx.fillRect(lx - 2, ly - 14, 3, 2); ctx.fillRect(lx - 1, ly - 12, 1, 3); } text(L().tut[0], lx, ly - 30, 8, 'center'); }
   }
 }
 function pickPose() {
@@ -587,27 +627,27 @@ function drawPlayer() {
 function drawFloaters() { for (const f of S.floaters) text(f.text, f.x, f.y - f.t * 28, 8, 'center', Math.max(0, 1 - f.t / 1.2), f.col === 'ok' ? pal.ok : f.col === 'bad' ? pal.bad : f.col === 'l' ? pal.l : pal.i); }
 function drawHUD() {
   text(`HI ${pad5(hi)} ${pad5(S.score)}`, W - 16, 14, 11, 'right');
-  if (S.state === 'run') { const lvl = Math.floor(S.cleared / PER_LEVEL); text(`POZIOM ${lvl + 1}  ${S.cleared % PER_LEVEL}/${PER_LEVEL}`, 16, 14, 9); text(`${Math.round(S.vx)} px/s${S.streak ? '   SERIA ' + S.streak : ''}`, 16, 30, 7, 'left', 1, pal.l); }
+  if (S.state === 'run') { const lvl = Math.floor(S.cleared / PER_LEVEL); text(`${L().level} ${lvl + 1}  ${S.cleared % PER_LEVEL}/${PER_LEVEL}`, 16, 14, 9); text(`${Math.round(S.vx)} px/s${S.streak ? '   ' + L().streakHud + ' ' + S.streak : ''}`, 16, 30, 7, 'left', 1, pal.l); }
   if (S.banner) { const a = S.banner.t < 0.3 ? S.banner.t / 0.3 : S.banner.t > 2.2 ? Math.max(0, (2.6 - S.banner.t) / 0.4) : 1; text(S.banner.text, W / 2, 84, 12, 'center', a); text(S.banner.sub, W / 2, 108, 8, 'center', a, pal.l); }
   if (S.state === 'run' && !S.onGround) {
     if (S.trick) { const p = Math.min(1, S.trick.p); text(`${TRICK[S.trick.type].name} ${Math.round(p * 100)}%`, W - 16, 32, 8, 'right', 1, p >= T.tol ? pal.ok : pal.i);
       ctx.fillStyle = pal.l; ctx.fillRect(W - 136, 46, 120, 3); ctx.fillStyle = p >= T.tol ? pal.ok : pal.i; ctx.fillRect(W - 136, 46, Math.round(120 * p), 3); ctx.fillStyle = pal.i; ctx.fillRect(W - 136 + Math.round(120 * T.tol), 44, 1, 7); }
-    if (S.queue) text(`NASTĘPNY: ${TRICK[S.queue.type].name}`, W - 16, S.trick ? 58 : 32, 7, 'right', 1, pal.l);
-    if (S.done.length) text(`KOMBO ×${S.done.length + 1}  +${S.pending}`, W - 16, S.queue ? 72 : 58, 8, 'right', 1, pal.ok);
-    if (S.launch && S.launch.k && S.launch.q >= 0.7 && tut >= 1 && tut <= 5 && S.launchT > 0.1) { const idx = tut; if (idx < 4 || (idx === 4 && S.launch.k.type !== 'S') || (idx === 5 && S.launch.k.type === 'L')) text(TUT_TEXT[idx], W / 2, 52, 9, 'center'); }
+    if (S.queue) text(`${L().next}${TRICK[S.queue.type].name}`, W - 16, S.trick ? 58 : 32, 7, 'right', 1, pal.l);
+    if (S.done.length) text(`${L().combo} ×${S.done.length + 1}  +${S.pending}`, W - 16, S.queue ? 72 : 58, 8, 'right', 1, pal.ok);
+    if (S.launch && S.launch.k && S.launch.q >= 0.7 && tut >= 1 && tut <= 5 && S.launchT > 0.1) { const idx = tut; if (idx < 4 || (idx === 4 && S.launch.k.type !== 'S') || (idx === 5 && S.launch.k.type === 'L')) text(L().tut[idx], W / 2, 52, 9, 'center'); }
   }
 }
 function drawOverlay() {
   if (S.state === 'idle') { text('DIRT JUMPER', W / 2, 60, 16, 'center');
-    if (records.length) { text('NAJLEPSZE PRZEJAZDY', W / 2, 168, 7, 'center', 1, pal.l); records.slice(0, 3).forEach((r, i) => text(`${i + 1}  ${pad5(r.score)}  POZIOM ${r.level}  ${r.cleared} KICK.  ${r.tricks} TRIKI`, W / 2, 182 + i * 12, 7, 'center', 1, pal.l)); } text('KLIKNIJ ALBO SPACJA, ABY RUSZYĆ', W / 2, 96, 9, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35); text('KLIK PRZED KRAWĘDZIĄ = WYBICIE', W / 2, 122, 7, 'center'); text('W LOCIE: 1× BARSPIN  2× TAILWHIP  3× BACKFLIP  4× FLIP WHIP  5× CASHROLL', W / 2, 138, 6, 'center', 1, pal.l); }
-  else if (S.state === 'pause') { text('P A U Z A', W / 2, 92, 13, 'center'); text('KLIKNIJ, ABY WRÓCIĆ', W / 2, 118, 8, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35); }
-  else if (S.state === 'over') { text('G A M E   O V E R', W / 2, 30, 13, 'center'); text(S.reason, W / 2, 52, 8, 'center', 1, pal.bad);
+    if (records.length) { text(L().best, W / 2, 168, 7, 'center', 1, pal.l); records.slice(0, 3).forEach((r, i) => text(`${i + 1}  ${pad5(r.score)}  ${L().level} ${r.level}  ${r.cleared} ${L().kick}  ${r.tricks} ${L().tricks}`, W / 2, 182 + i * 12, 7, 'center', 1, pal.l)); } text(L().start, W / 2, 96, 9, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35); text(L().hint1, W / 2, 122, 7, 'center'); text(L().hint2, W / 2, 138, 6, 'center', 1, pal.l); }
+  else if (S.state === 'pause') { text(L().pause, W / 2, 92, 13, 'center'); text(L().resume, W / 2, 118, 8, 'center', Math.floor(S.time * 2) % 2 ? 1 : 0.35); }
+  else if (S.state === 'over') { text(L().over, W / 2, 30, 13, 'center'); text(S.reason, W / 2, 52, 8, 'center', 1, pal.bad);
     const lvl = Math.floor(S.cleared / PER_LEVEL) + 1;
-    text(`WYNIK ${pad5(S.score)}${S.newHi ? '  NOWY REKORD!' : S.rank >= 0 ? `  MIEJSCE ${S.rank + 1}` : ''}`, W / 2, 70, 10, 'center', 1, S.newHi ? pal.ok : pal.i);
-    text(`POZIOM ${lvl} · KICKERY ${S.cleared} · TRIKI ${S.tricks} · KOMBO ×${Math.max(1, S.bestCombo)} · KICKERY +${S.kPts} TRIKI +${S.tPts} BONUSY +${S.bPts}`, W / 2, 88, 7, 'center', 1, pal.l);
+    text(`${L().score} ${pad5(S.score)}${S.newHi ? L().newHi : S.rank >= 0 ? `${L().place} ${S.rank + 1}` : ''}`, W / 2, 70, 10, 'center', 1, S.newHi ? pal.ok : pal.i);
+    text(L().summary(lvl, S.cleared, S.tricks, Math.max(1, S.bestCombo), S.kPts, S.tPts, S.bPts), W / 2, 88, 7, 'center', 1, pal.l);
     // tablica wyników
     const cols = [W / 2 - 200, W / 2 - 120, W / 2 - 40, W / 2 + 40, W / 2 + 120, W / 2 + 200];
-    const hdr = ['#', 'WYNIK', 'POZIOM', 'KICKERY', 'TRIKI', 'KOMBO'];
+    const hdr = L().hdr;
     hdr.forEach((h, i) => text(h, cols[i], 108, 6, i === 0 ? 'left' : 'right', 1, pal.l));
     ctx.fillStyle = pal.l; ctx.fillRect(W / 2 - 200, 117, 400, 1);
     records.slice(0, 5).forEach((r, i) => { const y = 122 + i * 13, col = i === S.rank ? pal.ok : pal.i;
@@ -629,6 +669,13 @@ function buildRecords() {
 }
 $('clearRec').addEventListener('click', () => { records = []; hi = 0; try { localStorage.removeItem('dj5_records'); localStorage.removeItem('dj5_hi'); } catch (e) {} buildRecords(); });
 $('mute').addEventListener('click', () => { setMute(!AU.muted); if (!AU.muted) tone(660, 660, 0.08, 'square', 0.05); });
+function applyLang() {
+  document.documentElement.setAttribute('data-lang', lang); document.documentElement.lang = lang;
+  $('lang').textContent = L().langBtn; $('fs').textContent = L().fs; setMute(AU.muted);
+  $('hintline').textContent = L().hintLine; canvas.setAttribute('aria-label', L().aria);
+  document.querySelectorAll('.lang-en').forEach(e => { e.hidden = lang !== 'en'; }); document.querySelectorAll('.lang-pl').forEach(e => { e.hidden = lang !== 'pl'; });
+}
+$('lang').addEventListener('click', () => { lang = lang === 'en' ? 'pl' : 'en'; try { localStorage.setItem('dj5_lang', lang); } catch (e) {} applyLang(); });
 $('fs').addEventListener('click', () => { try { if (document.fullscreenElement) document.exitFullscreen(); else if (canvas.requestFullscreen) canvas.requestFullscreen(); } catch (e) {} });
 document.addEventListener('fullscreenchange', () => { setTimeout(resize, 50); });
 function buildLevels() {
@@ -653,7 +700,7 @@ function buildTableOld() {
 }
 function rebuild() { readPalette(); buildSprites(); for (const k of S.kickers) renderKicker(k); }
 function start() {
-  readPalette(); buildSprites(); resetGame(); buildTune(); buildLevels(); buildRecords(); resize(); setMute(AU.muted);
+  readPalette(); buildSprites(); resetGame(); buildTune(); buildLevels(); buildRecords(); resize(); applyLang();
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
   window.addEventListener('resize', resize);
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rebuild);
