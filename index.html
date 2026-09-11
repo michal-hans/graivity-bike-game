@@ -76,7 +76,7 @@
         <li>W locie: <b>1× klik</b> barspin (50 pkt) · <b>2× klik</b> tailwhip (100) · <b>3× klik</b> backflip (150) · <b>4× klik</b> flip whip, czyli backflip z tailwhipem (200) · <b>5× klik</b> cashroll, czyli backflip z obrotem 360 (300).</li>
         <li>Klikaj szybko, kolejne kliknięcie w ciągu 250 ms podbija trik. Obrót liczy się od pierwszego kliknięcia, więc pięć kliknięć nie zjada czasu lotu. Flip whip i cashroll potrzebują dużego kickera.</li>
         <li>Klikaj w trakcie triku, żeby ustawić kolejny — drugi trik w locie liczy się ×2, trzeci ×3. Lądowanie w połowie obrotu to upadek.</li>
-        <li>Co 10 kickerów nowy poziom: większe kickery, ciaśniej, szybciej (do 640 px/s). Od poziomu 6 okno wybicia się zwęża, od 7 pojawiają się step-upy: lądowanie jest wyżej niż krawędź kickera, więc trzeba wybić się niemal idealnie, a po krótkim stoliku jest drop, z którego też można robić triki. Seria 5 kickerów z trikiem daje +100.</li>
+        <li>Co 10 kickerów nowy poziom: większe kickery, ciaśniej, szybciej (do 640 px/s). Od poziomu 5 pojawiają się step-upy, od 6 okno wybicia się zwęża. Step-up: lądowanie jest wyżej niż krawędź kickera, więc trzeba wybić się niemal idealnie, a po krótkim stoliku jest drop, z którego też można robić triki. Seria 5 kickerów z trikiem daje +100.</li>
         <li>Spacja albo strzałka w górę działają jak klik. Po zmianie karty gra sama się zatrzymuje.</li>
       </ul>
     </div>
@@ -316,9 +316,9 @@ const LEVELS = [
   { w: [0.5, 0.5, 0],    flat: [420, 650], v: 350, win: 80, far: 320, step: 0,    name: 'S + M' },
   { w: [0.2, 0.6, 0.2],  flat: [340, 540], v: 375, win: 80, far: 320, step: 0,    name: 'PIERWSZE DUŻE' },
   { w: [0.1, 0.5, 0.4],  flat: [260, 460], v: 400, win: 80, far: 320, step: 0,    name: 'M + L, CIAŚNIEJ' },
-  { w: [0, 0.4, 0.6],    flat: [200, 400], v: 430, win: 80, far: 320, step: 0,    name: 'GŁÓWNIE L' },
-  { w: [0, 0.3, 0.7],    flat: [160, 340], v: 460, win: 72, far: 295, step: 0,    name: 'PRO LINE · WĘŻSZE OKNO' },
-  { w: [0, 0.3, 0.7],    flat: [140, 300], v: 500, win: 65, far: 270, step: 0.25, name: 'STEP-UPY' },
+  { w: [0, 0.4, 0.6],    flat: [200, 400], v: 430, win: 80, far: 320, step: 0.15, name: 'GŁÓWNIE L · PIERWSZE STEP-UPY' },
+  { w: [0, 0.3, 0.7],    flat: [160, 340], v: 460, win: 72, far: 295, step: 0.20, name: 'PRO LINE · WĘŻSZE OKNO' },
+  { w: [0, 0.3, 0.7],    flat: [140, 300], v: 500, win: 65, far: 270, step: 0.25, name: 'WIĘCEJ STEP-UPÓW' },
   { w: [0, 0.25, 0.75],  flat: [120, 280], v: 540, win: 58, far: 250, step: 0.30, name: 'SZYBKO' },
   { w: [0, 0.2, 0.8],    flat: [100, 260], v: 580, win: 54, far: 235, step: 0.35, name: 'BARDZO SZYBKO' },
   { w: [0, 0.2, 0.8],    flat: [100, 240], v: 620, win: 50, far: 220, step: 0.40, name: 'LIMIT' },
@@ -359,9 +359,9 @@ function terrain(wx) {
     if (wx < k.x || wx >= k.x + k.total) continue; const r = wx - k.x;
     for (const p of k.parts) {
       if (r < p.x0 || r >= p.x1) continue;
-      if (p.kind === 'ramp') return { h: rampH(k, r), slope: rampSlope(k, r), kind: 'ramp', k };
-      if (p.kind === 'gap') return { h: -Infinity, slope: 0, kind: 'gap', k };
-      const u = (r - p.x0) / p.len; return { h: p.h0 + (p.h1 - p.h0) * u, slope: (p.h1 - p.h0) / p.len, kind: p.kind, k };
+      if (p.kind === 'ramp') return { h: rampH(k, r), slope: rampSlope(k, r), kind: 'ramp', k, part: p };
+      if (p.kind === 'gap') return { h: -Infinity, slope: 0, kind: 'gap', k, part: p };
+      const u = (r - p.x0) / p.len; return { h: p.h0 + (p.h1 - p.h0) * u, slope: (p.h1 - p.h0) / p.len, kind: p.kind, k, part: p };
     }
   }
   return { h: 0, slope: 0, kind: 'flat', k: null };
@@ -488,6 +488,7 @@ function update(dt) {
   if (S.state === 'pause') return;
   if (S.state !== 'run') return;
   const tv = levelSpeed(Math.floor(S.cleared / PER_LEVEL)); S.vx += (tv - S.vx) * Math.min(1, dt * 0.8);
+  const prevDist = S.dist, prevHgt = S.hgt, prevTr = S.tr;
   const mv = S.onGround ? S.vx : S.airVx; S.dist += mv * dt; S.score += mv * dt / 45; S.wheel += mv * dt; if (S.landT > 0) S.landT -= dt; S.launchT += dt;
   if (S.banner) { S.banner.t += dt; if (S.banner.t > 2.6) S.banner = null; }
   for (const c of S.clouds) { c.x -= S.vx * dt * 0.3; if (c.x < -60) { c.x = W + 40 + Math.random() * 200; c.y = 40 + Math.random() * 90; } }
@@ -495,7 +496,7 @@ function update(dt) {
   const tr = terrain(S.dist); S.tr = tr;
   if (S.onGround) {
     if (tr.kind === 'gap') { const k = tr.k; if (S.pump && S.pump.k === k) { const d = S.time - S.pump.t; doLaunch(k, quality(d, k.lvl || 0), 'pump', d); } else doLaunch(k, 0.35, 'none', 0); }
-    else if (tr.h < S.hgt - 6) { // drop: ziemia ucieka spod kół, lot bez wybicia, triki dozwolone
+    else if (prevTr && prevTr.part && tr.part && prevTr.part !== tr.part && prevTr.k === tr.k && prevTr.part.h1 !== undefined && tr.part.h0 !== undefined && prevTr.part.h1 - tr.part.h0 > 6) { // drop: uskok w dół między odcinkami, lot bez wybicia, triki dozwolone
       S.onGround = false; S.vy = 0; S.airVx = S.vx; S.launchT = 0.2; S.launch = { k: null, q: 0, mode: 'drop' }; S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.lastClick = -9; floater('DROP', -60, 'l');
     }
     else { S.hgt = tr.h; S.angle = -Math.min(0.8, Math.atan(tr.slope)); if (S.pump && S.time - S.pump.t > 0.6) S.pump = null; }
@@ -505,7 +506,18 @@ function update(dt) {
     if (S.trick && ROT.has(S.trick.type)) S.angle = -2 * Math.PI * rotTurns(S.trick);
     else S.angle += (0 - S.angle) * Math.min(1, dt * 3);
     if (tr.kind === 'gap') { if (S.hgt <= 0) crash('DZIURA'); }
-    else if (S.hgt <= tr.h) { if (tr.h - S.hgt > 10) crash('ZA NISKO — CZOŁO LĄDOWANIA'); else land(tr); }
+    else if (S.hgt <= tr.h) {
+      // czoło: czy w tej klatce przekroczono początek odcinka z pionowym czołem poniżej jego górnej krawędzi?
+      let cased = false;
+      if (tr.part && tr.part.h0 !== undefined) {
+        const faceX = tr.k.x + tr.part.x0;
+        if (prevDist < faceX && S.dist >= faceX) {
+          const before = terrain(prevDist), bottom = before.kind === 'gap' ? -1e9 : before.h;
+          if (tr.part.h0 > bottom + 1) { const f = (faceX - prevDist) / Math.max(1e-6, S.dist - prevDist); const hAt = prevHgt + (S.hgt - prevHgt) * f; if (hAt < tr.part.h0 - 4) cased = true; }
+        }
+      }
+      if (cased) crash('ZA NISKO — CZOŁO LĄDOWANIA'); else land(tr);
+    }
   }
 }
 // ================= Render =================
