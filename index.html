@@ -76,7 +76,7 @@
         <li>W locie: <b>1× klik</b> barspin (50 pkt) · <b>2× klik</b> tailwhip (100) · <b>3× klik</b> backflip (150) · <b>4× klik</b> flip whip, czyli backflip z tailwhipem (200) · <b>5× klik</b> cashroll, czyli backflip z obrotem 360 (300).</li>
         <li>Klikaj szybko, kolejne kliknięcie w ciągu 250 ms podbija trik. Obrót liczy się od pierwszego kliknięcia, więc pięć kliknięć nie zjada czasu lotu. Flip whip i cashroll potrzebują dużego kickera.</li>
         <li>Klikaj w trakcie triku, żeby ustawić kolejny — drugi trik w locie liczy się ×2, trzeci ×3. Lądowanie w połowie obrotu to upadek.</li>
-        <li>Co 10 kickerów nowy poziom: większe kickery, ciaśniej, szybciej. Seria 5 kickerów z trikiem daje +100.</li>
+        <li>Co 10 kickerów nowy poziom: większe kickery, ciaśniej, szybciej (do 640 px/s). Od poziomu 6 okno wybicia się zwęża, od 7 pojawiają się step-upy: najazd zaczyna się tuż za skarpą, trzeba wylądować i od razu pompować. Seria 5 kickerów z trikiem daje +100.</li>
         <li>Spacja albo strzałka w górę działają jak klik. Po zmianie karty gra sama się zatrzymuje.</li>
       </ul>
     </div>
@@ -120,7 +120,7 @@
     <div class="col wide">
       <h2>Poziomy</h2>
       <div class="tbl"><table id="ltable"></table></div>
-      <p class="muted">Rozmiary: udział S / M / L w losowaniu. Odstęp: płaski odcinek między lądowaniem a następnym najazdem. Od poziomu 6 zestaw się nie zmienia, rośnie tylko tempo do limitu 520 px/s.</p>
+      <p class="muted">Rozmiary: udział S / M / L w losowaniu. Odstęp: płaski odcinek między lądowaniem a następnym najazdem. Powyżej poziomu 10 zestaw się nie zmienia, rośnie tylko tempo do limitu 640 px/s. Suwak „okno perfect” skaluje okna wszystkich poziomów proporcjonalnie.</p>
     </div>
 
     <div class="col wide">
@@ -297,15 +297,22 @@ let records = []; try { records = JSON.parse(localStorage.getItem('dj5_records')
 const PER_LEVEL = 10;
 // poziomy: udział S/M/L, odstęp płaski [min,max], prędkość docelowa, nazwa
 const LEVELS = [
-  { w: [1, 0, 0],       flat: [520, 780], v: 330, name: 'ROZGRZEWKA · TYLKO S' },
-  { w: [0.5, 0.5, 0],   flat: [420, 650], v: 350, name: 'S + M' },
-  { w: [0.2, 0.6, 0.2], flat: [340, 540], v: 375, name: 'PIERWSZE DUŻE' },
-  { w: [0.1, 0.5, 0.4], flat: [260, 460], v: 400, name: 'M + L, CIAŚNIEJ' },
-  { w: [0, 0.4, 0.6],   flat: [200, 400], v: 430, name: 'GŁÓWNIE L' },
-  { w: [0, 0.3, 0.7],   flat: [160, 340], v: 460, name: 'PRO LINE' },
+  // w: udział S/M/L, flat: płaski odcinek [min,max] px, v: prędkość px/s, win: okno perfect ms, far: koniec okna ms, step: szansa na step-up
+  { w: [1, 0, 0],        flat: [520, 780], v: 330, win: 80, far: 320, step: 0,    name: 'ROZGRZEWKA · TYLKO S' },
+  { w: [0.5, 0.5, 0],    flat: [420, 650], v: 350, win: 80, far: 320, step: 0,    name: 'S + M' },
+  { w: [0.2, 0.6, 0.2],  flat: [340, 540], v: 375, win: 80, far: 320, step: 0,    name: 'PIERWSZE DUŻE' },
+  { w: [0.1, 0.5, 0.4],  flat: [260, 460], v: 400, win: 80, far: 320, step: 0,    name: 'M + L, CIAŚNIEJ' },
+  { w: [0, 0.4, 0.6],    flat: [200, 400], v: 430, win: 80, far: 320, step: 0,    name: 'GŁÓWNIE L' },
+  { w: [0, 0.3, 0.7],    flat: [160, 340], v: 460, win: 72, far: 295, step: 0,    name: 'PRO LINE · WĘŻSZE OKNO' },
+  { w: [0, 0.3, 0.7],    flat: [140, 300], v: 500, win: 65, far: 270, step: 0.25, name: 'STEP-UPY' },
+  { w: [0, 0.25, 0.75],  flat: [120, 280], v: 540, win: 58, far: 250, step: 0.30, name: 'SZYBKO' },
+  { w: [0, 0.2, 0.8],    flat: [100, 260], v: 580, win: 54, far: 235, step: 0.35, name: 'BARDZO SZYBKO' },
+  { w: [0, 0.2, 0.8],    flat: [100, 240], v: 620, win: 50, far: 220, step: 0.40, name: 'LIMIT' },
 ];
 const levelDef = i => LEVELS[Math.min(i, LEVELS.length - 1)];
-const levelSpeed = i => Math.min(520, levelDef(i).v + Math.max(0, i - LEVELS.length + 1) * 30);
+const levelSpeed = i => Math.min(640, levelDef(i).v + Math.max(0, i - LEVELS.length + 1) * 20);
+const winFor = i => levelDef(i).win / 1000 * (T.win / 80); // suwak „okno perfect” skaluje wszystkie poziomy
+const farFor = i => levelDef(i).far / 1000 * (T.win / 80);
 function pickType(i) { const w = levelDef(i).w, r = Math.random(); return r < w[0] ? 'S' : r < w[0] + w[1] ? 'M' : 'L'; }
 const TUT_TEXT = ['KLIK TUŻ PRZED KRAWĘDZIĄ', '1× KLIK W LOCIE = BARSPIN', '2× KLIK = TAILWHIP', '3× KLIK = BACKFLIP', 'KLIKAJ W TRAKCIE TRIKU = KOLEJKA NA KOMBO', '4× KLIK = FLIP WHIP · 5× KLIK = CASHROLL'];
 const TRICK = { bar: { name: 'BARSPIN', pts: 50, dur: () => T.bar }, whip: { name: 'TAILWHIP', pts: 100, dur: () => T.whip }, flip: { name: 'BACKFLIP', pts: 150, dur: () => T.flip }, fw: { name: 'FLIP WHIP', pts: 200, dur: () => T.fw }, cash: { name: 'CASHROLL', pts: 300, dur: () => T.cash } };
@@ -318,15 +325,16 @@ const opts = { win: true, traj: true, num: false };
 
 function resetGame() {
   Object.assign(S, { state: 'idle', time: 0, dist: 0, vx: T.v0, score: 0, hgt: 0, vy: 0, angle: 0, onGround: true, airVx: T.v0, tr: null,
-    pump: null, launch: null, landT: 0, launchT: 0, wheel: 0, kickers: [], clouds: [], floaters: [], nextK: 560, nSpawn: 0, overT: 0, reason: '', pulse: 0,
+    pump: null, launch: null, landT: 0, launchT: 0, wheel: 0, kickers: [], clouds: [], floaters: [], nextK: 560, nSpawn: 0, nextStep: false, overT: 0, reason: '', pulse: 0,
     trick: null, queue: null, done: [], pending: 0, lastClick: -9, clicks: 0, log: [], cleared: 0, streak: 0, tricks: 0, bestCombo: 0, banner: null, kPts: 0, tPts: 0, bPts: 0 });
   for (let i = 0; i < 3; i++) S.clouds.push({ x: 200 + i * 260 + Math.random() * 120, y: 40 + Math.random() * 90 });
 }
 function spawnKickers() {
   while (S.nextK < S.dist + W + 300) {
     const n = S.nSpawn, lvl = Math.floor(n / PER_LEVEL), def = levelDef(lvl);
-    const k = makeKicker(pickType(lvl), levelSpeed(lvl)); k.x = S.nextK; k.idx = n; k.lvl = lvl; renderKicker(k); S.kickers.push(k); S.nSpawn++;
-    S.nextK = k.x + k.total + Math.round(def.flat[0] + Math.random() * (def.flat[1] - def.flat[0]));
+    const k = makeKicker(pickType(lvl), levelSpeed(lvl)); k.x = S.nextK; k.idx = n; k.lvl = lvl; k.stepUp = !!S.nextStep; renderKicker(k); S.kickers.push(k); S.nSpawn++;
+    S.nextStep = Math.random() < def.step; // step-up: następny najazd zaczyna się tuż za skarpą, bez płaskiego
+    S.nextK = k.x + k.total + (S.nextStep ? 0 : Math.round(def.flat[0] + Math.random() * (def.flat[1] - def.flat[0])));
   }
   S.kickers = S.kickers.filter(k => k.x + k.total > S.dist - 200);
 }
@@ -342,8 +350,8 @@ function terrain(wx) {
 function nextLip() { let best = null; for (const k of S.kickers) { const lx = k.x + k.L; if (lx >= S.dist && (!best || lx < best.lx)) best = { k, lx }; } return best; }
 // prędkość pozioma w locie: im lepsze wybicie, tym wyżej i odrobinę krócej, żeby idealny skok lądował na skarpie
 function airSpeed(vx, q) { const u = Math.min(1, Math.max(0, (q - 0.35) / 0.65)); return vx * (1 - T.airSlow * u); }
-function quality(dt) { const win = T.win / 1000, far = win + 0.32; if (dt <= win) return 1; if (dt >= far) return 0.35; return 1 - 0.65 * Math.pow((dt - win) / (far - win), 0.9); }
-function winThreshold() { const win = T.win / 1000, far = win + 0.32; return win + (far - win) * Math.pow(0.3 / 0.65, 1 / 0.9); } // dt where q = 0.7
+function quality(dt, lvl = 0) { const win = winFor(lvl), far = farFor(lvl); if (dt <= win) return 1; if (dt >= far) return 0.35; return 1 - 0.65 * Math.pow((dt - win) / (far - win), 0.9); }
+function winThreshold(lvl = 0) { const win = winFor(lvl), far = farFor(lvl); return win + (far - win) * Math.pow(0.3 / 0.65, 1 / 0.9); } // dt, przy którym q = 0.7
 
 // ================= Events =================
 const $ = id => document.getElementById(id);
@@ -434,7 +442,7 @@ function click() {
     $('readout').innerHTML = `Bunny hop na płaskim: 34 px, lot ${(2 * S.vy / T.g).toFixed(2)} s. Najbliższa krawędź za ${nl ? Math.round(dt * 1000) + ' ms' : '—'}, za daleko na pompowanie (limit 420 ms).`;
     return;
   }
-  if (S.launch && S.launch.k && S.launch.mode === 'none' && !S.launch.rescued && S.time - S.launch.tLip < 0.08) {
+  if (S.launch && S.launch.k && S.launch.mode === 'none' && !S.launch.rescued && S.time - S.launch.tLip < winFor(S.launch.k.lvl || 0)) {
     S.launch.rescued = true; S.launch.mode = 'late'; S.launch.q = 0.9; S.vy = Math.max(S.vy, 0.9 * vyMax(S.launch.k)); S.airVx = airSpeed(S.vx, 0.9); floater('W OSTATNIEJ CHWILI', -60, 'ok'); readoutLaunch(S.launch); return;
   }
   const now = S.time, chain = T.chain / 1000;
@@ -467,7 +475,7 @@ function update(dt) {
   spawnKickers();
   const tr = terrain(S.dist); S.tr = tr;
   if (S.onGround) {
-    if (tr.kind === 'gap') { const k = tr.k; if (S.pump && S.pump.k === k) { const d = S.time - S.pump.t; doLaunch(k, quality(d), 'pump', d); } else doLaunch(k, 0.35, 'none', 0); }
+    if (tr.kind === 'gap') { const k = tr.k; if (S.pump && S.pump.k === k) { const d = S.time - S.pump.t; doLaunch(k, quality(d, k.lvl || 0), 'pump', d); } else doLaunch(k, 0.35, 'none', 0); }
     else { S.hgt = tr.h; S.angle = -Math.min(0.8, Math.atan(tr.slope)); if (S.pump && S.time - S.pump.t > 0.6) S.pump = null; }
   } else {
     S.vy -= T.g * dt; S.hgt += S.vy * dt;
@@ -497,7 +505,7 @@ function drawKickers() {
     ctx.drawImage(k.img, x0, GY - k.img.height + 1);
     const lx = x0 + k.L, ly = GY - k.H;
     if (opts.win && S.state === 'run' && k.x + k.L > S.dist) { // okno kliknięcia pod ziemią
-      const thr = winThreshold(), a = lx - S.vx * thr, b = lx - S.vx * T.win / 1000;
+      const thr = winThreshold(k.lvl || 0), a = lx - S.vx * thr, b = lx - S.vx * winFor(k.lvl || 0);
       ctx.fillStyle = pal.ok; ctx.globalAlpha = 0.55; ctx.fillRect(Math.round(a), GY + 10, Math.round(b - a), 2); ctx.globalAlpha = 1; ctx.fillRect(Math.round(b), GY + 8, Math.round(lx - b), 4);
       ctx.fillStyle = pal.i;
     }
@@ -506,6 +514,7 @@ function drawKickers() {
       ctx.fillStyle = pal.i;
     }
     if (opts.num) text(`${k.type} H${k.H} D${k.gap}`, lx - 4, ly - 26, 7, 'right', 0.8, pal.l);
+    if (k.stepUp) text('STEP-UP', lx - 2, ly - 12, 6, 'right', 1, pal.l);
     if (!tutOK() && S.state === 'run') { if (Math.floor(S.pulse * 4) % 2 === 0) { ctx.fillStyle = pal.i; ctx.fillRect(lx - 3, ly - 16, 5, 2); ctx.fillRect(lx - 2, ly - 14, 3, 2); ctx.fillRect(lx - 1, ly - 12, 1, 3); } text('KLIK TUŻ PRZED KRAWĘDZIĄ', lx, ly - 30, 8, 'center'); }
   }
 }
@@ -580,8 +589,8 @@ $('mute').addEventListener('click', () => { setMute(!AU.muted); if (!AU.muted) t
 $('fs').addEventListener('click', () => { try { if (document.fullscreenElement) document.exitFullscreen(); else if (canvas.requestFullscreen) canvas.requestFullscreen(); } catch (e) {} });
 document.addEventListener('fullscreenchange', () => { setTimeout(resize, 50); });
 function buildLevels() {
-  const rows = LEVELS.map((l, i) => `<tr><td>${i + 1}</td><td>${l.name}</td><td>${l.w.map(v => Math.round(v * 100)).join(' / ')}</td><td>${l.flat[0]}–${l.flat[1]}</td><td>${l.v}</td></tr>`);
-  $('ltable').innerHTML = '<thead><tr><th>Poziom</th><th>Nazwa</th><th>S / M / L [%]</th><th>Odstęp [px]</th><th>Prędkość [px/s]</th></tr></thead><tbody>' + rows.join('') + '</tbody>';
+  const rows = LEVELS.map((l, i) => `<tr><td>${i + 1}</td><td>${l.name}</td><td>${l.w.map(v => Math.round(v * 100)).join(' / ')}</td><td>${l.flat[0]}–${l.flat[1]}</td><td>${l.v}</td><td>${l.win}</td><td>${Math.round(winThreshold(i) * 1000)}</td><td>${Math.round(l.step * 100)}</td></tr>`);
+  $('ltable').innerHTML = '<thead><tr><th>Poziom</th><th>Nazwa</th><th>S / M / L [%]</th><th>Odstęp [px]</th><th>Prędkość [px/s]</th><th>Perfect [ms]</th><th>Próg ≥0,7 [ms]</th><th>Step-up [%]</th></tr></thead><tbody>' + rows.join('') + '</tbody>';
 }
 function buildTune() {
   const el = $('tune'); el.innerHTML = '';
