@@ -152,13 +152,14 @@
 (function () {
 'use strict';
 // ================= Tunables =================
-const TUNE_DEF = { g: 560, v0: 330, boost: 2.6, win: 80, gapF: 0.58, lip: 68, land: 5, bar: 0.30, flip: 0.80, whip: 0.65, fw: 1.00, cash: 1.10, chain: 250, tol: 0.85 };
+const TUNE_DEF = { g: 560, v0: 330, boost: 2.6, win: 80, gapF: 0.62, lip: 68, land: 5, airSlow: 0.25, bar: 0.30, flip: 0.80, whip: 0.65, fw: 1.00, cash: 1.10, chain: 250, tol: 0.85 };
 const TUNE_META = [
   ['g', 'Grawitacja', 400, 900, 10, 'px/s²'],
   ['v0', 'Prędkość startowa', 250, 450, 5, 'px/s'],
   ['boost', 'Mnożnik wysokości (S)', 1.8, 3.6, 0.1, '× H'],
   ['win', 'Okno „perfect”', 40, 200, 10, 'ms'],
   ['gapF', 'Długość dziury', 0.40, 0.75, 0.01, '× dystans'],
+  ['airSlow', 'Hamowanie w locie (perfect)', 0, 0.4, 0.01, '× v'],
   ['lip', 'Kąt krawędzi', 50, 80, 1, '°'],
   ['land', 'Długość lądowania', 1.5, 8, 0.5, '× wys.'],
   ['bar', 'Czas barspina', 0.2, 0.8, 0.05, 's'],
@@ -172,7 +173,7 @@ const TUNE_META = [
 let T = Object.assign({}, TUNE_DEF);
 try { Object.assign(T, JSON.parse(localStorage.getItem('dj5_tune') || '{}')); } catch (e) {}
 for (const k in TUNE_DEF) if (typeof T[k] !== 'number') T[k] = TUNE_DEF[k];
-const fmt = (k, v) => k === 'boost' || k === 'land' ? v.toFixed(1) : k === 'gapF' || k === 'bar' || k === 'flip' || k === 'whip' || k === 'fw' || k === 'cash' || k === 'tol' ? v.toFixed(2) : String(Math.round(v));
+const fmt = (k, v) => k === 'boost' || k === 'land' ? v.toFixed(1) : k === 'gapF' || k === 'airSlow' || k === 'bar' || k === 'flip' || k === 'whip' || k === 'fw' || k === 'cash' || k === 'tol' ? v.toFixed(2) : String(Math.round(v));
 
 // ================= Palette =================
 const pal = { i: '#535353', l: '#8a8a8a', w: '#ffffff', bg: '#f7f7f7', ok: '#3f7d4e', bad: '#a34a3a' };
@@ -266,8 +267,9 @@ function makeKicker(type, vx, jitter = true) {
   const H = Math.round(KBASE[type] * (jitter ? 0.88 + Math.random() * 0.24 : 1));
   const R = H / (1 - Math.cos(lipRad())), L = Math.round(R * Math.sin(lipRad()) + 4);
   const Tp = 2 * vyMax({ H, type }) / T.g;
-  const k = { type, H, R, L, gap: Math.round(T.gapF * vx * Tp), lH: Math.round(H * 0.6) };
-  k.lL = Math.round(k.lH * T.land); k.total = k.L + k.gap + k.lL; k.x = 0; k.img = null;
+  const D = vx * Tp; // dystans idealnego skoku bez hamowania
+  const k = { type, H, R, L, gap: Math.round(T.gapF * D), lH: Math.round(H * 0.6) };
+  k.lL = Math.max(Math.round(k.lH * T.land), Math.round(0.32 * D)); k.total = k.L + k.gap + k.lL; k.x = 0; k.img = null;
   return k;
 }
 function rampH(k, x) { const u = Math.max(0, x - 4); return u >= k.R ? k.H : Math.min(k.H, k.R - Math.sqrt(k.R * k.R - u * u)); }
@@ -315,7 +317,7 @@ const tutOK = () => tut >= 1;
 const opts = { win: true, traj: true, num: false };
 
 function resetGame() {
-  Object.assign(S, { state: 'idle', time: 0, dist: 0, vx: T.v0, score: 0, hgt: 0, vy: 0, angle: 0, onGround: true, tr: null,
+  Object.assign(S, { state: 'idle', time: 0, dist: 0, vx: T.v0, score: 0, hgt: 0, vy: 0, angle: 0, onGround: true, airVx: T.v0, tr: null,
     pump: null, launch: null, landT: 0, launchT: 0, wheel: 0, kickers: [], clouds: [], floaters: [], nextK: 560, nSpawn: 0, overT: 0, reason: '', pulse: 0,
     trick: null, queue: null, done: [], pending: 0, lastClick: -9, clicks: 0, log: [], cleared: 0, streak: 0, tricks: 0, bestCombo: 0, banner: null, kPts: 0, tPts: 0, bPts: 0 });
   for (let i = 0; i < 3; i++) S.clouds.push({ x: 200 + i * 260 + Math.random() * 120, y: 40 + Math.random() * 90 });
@@ -338,6 +340,8 @@ function terrain(wx) {
   return { h: 0, slope: 0, kind: 'flat', k: null };
 }
 function nextLip() { let best = null; for (const k of S.kickers) { const lx = k.x + k.L; if (lx >= S.dist && (!best || lx < best.lx)) best = { k, lx }; } return best; }
+// prędkość pozioma w locie: im lepsze wybicie, tym wyżej i odrobinę krócej, żeby idealny skok lądował na skarpie
+function airSpeed(vx, q) { const u = Math.min(1, Math.max(0, (q - 0.35) / 0.65)); return vx * (1 - T.airSlow * u); }
 function quality(dt) { const win = T.win / 1000, far = win + 0.32; if (dt <= win) return 1; if (dt >= far) return 0.35; return 1 - 0.65 * Math.pow((dt - win) / (far - win), 0.9); }
 function winThreshold() { const win = T.win / 1000, far = win + 0.32; return win + (far - win) * Math.pow(0.3 / 0.65, 1 / 0.9); } // dt where q = 0.7
 
@@ -362,7 +366,7 @@ const SFX = {
 function setMute(m) { AU.muted = m; try { localStorage.setItem('dj5_mute', m ? '1' : '0'); } catch (e) {} $('mute').textContent = m ? 'Dźwięk: wył' : 'Dźwięk: wł'; $('mute').setAttribute('aria-pressed', m ? 'true' : 'false'); }
 function floater(text, dy = -54, col = 'i') { S.floaters.push({ text, x: PX, y: GY - S.hgt + dy, t: 0, col }); }
 function readoutLaunch(l) {
-  const q = l.q, k = l.k, air = 2 * S.vy / T.g, distA = S.vx * air, hmax = S.vy * S.vy / (2 * T.g);
+  const q = l.q, k = l.k, air = 2 * S.vy / T.g, distA = S.airVx * air, hmax = S.vy * S.vy / (2 * T.g);
   const label = l.mode === 'none' ? 'bez kliknięcia' : l.mode === 'late' ? 'klik po krawędzi (ratunek)' : `klik ${Math.round(l.dt * 1000)} ms przed krawędzią`;
   const cls = q >= 0.7 ? 'ok' : 'bad';
   $('readout').innerHTML = `Kicker <b>${k.type}</b> H ${k.H} px, dziura ${k.gap} px · ${label}<br>` +
@@ -374,7 +378,7 @@ function readoutTricks() {
   $('readout').innerHTML += `<br>Triki w tym locie: ${parts.length ? parts.join(' · ') : 'brak'}${S.pending ? ` · razem <b>+${S.pending}</b>` : ''}`;
 }
 function doLaunch(k, q, mode, dt) {
-  S.onGround = false; S.hgt = k.H; S.vy = q * vyMax(k); S.launchT = 0; S.angle = -Math.atan(rampSlope(k, k.L)) * 0.6;
+  S.onGround = false; S.hgt = k.H; S.vy = q * vyMax(k); S.launchT = 0; S.airVx = airSpeed(S.vx, q); S.angle = -Math.atan(rampSlope(k, k.L)) * 0.6;
   S.launch = { k, q, mode, dt, tLip: S.time, rescued: false }; S.pump = null;
   S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.clicks = 0; S.lastClick = -9;
   if (mode !== 'none') SFX.launch(q); else tone(240, 160, 0.15, 'sawtooth', 0.03);
@@ -426,12 +430,12 @@ function click() {
   if (S.onGround) {
     const nl = nextLip(); const dt = nl ? (nl.lx - S.dist) / S.vx : 9;
     if (nl && dt < 0.42 && (tr.kind === 'ramp' || tr.kind === 'flat' || tr.kind === 'lander')) { S.pump = { t: S.time, k: nl.k, dt }; SFX.pump(); return; } // napompowanie
-    S.onGround = false; S.vy = Math.sqrt(2 * T.g * 34); S.launchT = 0; S.launch = { k: null, q: 0, mode: 'hop' }; S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.lastClick = -9;
+    S.onGround = false; S.vy = Math.sqrt(2 * T.g * 34); S.launchT = 0; S.airVx = S.vx; S.launch = { k: null, q: 0, mode: 'hop' }; S.trick = null; S.queue = null; S.done = []; S.pending = 0; S.log = []; S.lastClick = -9;
     $('readout').innerHTML = `Bunny hop na płaskim: 34 px, lot ${(2 * S.vy / T.g).toFixed(2)} s. Najbliższa krawędź za ${nl ? Math.round(dt * 1000) + ' ms' : '—'}, za daleko na pompowanie (limit 420 ms).`;
     return;
   }
   if (S.launch && S.launch.k && S.launch.mode === 'none' && !S.launch.rescued && S.time - S.launch.tLip < 0.08) {
-    S.launch.rescued = true; S.launch.mode = 'late'; S.launch.q = 0.9; S.vy = Math.max(S.vy, 0.9 * vyMax(S.launch.k)); floater('W OSTATNIEJ CHWILI', -60, 'ok'); readoutLaunch(S.launch); return;
+    S.launch.rescued = true; S.launch.mode = 'late'; S.launch.q = 0.9; S.vy = Math.max(S.vy, 0.9 * vyMax(S.launch.k)); S.airVx = airSpeed(S.vx, 0.9); floater('W OSTATNIEJ CHWILI', -60, 'ok'); readoutLaunch(S.launch); return;
   }
   const now = S.time, chain = T.chain / 1000;
   const upgrade = t => TRICK_ORDER[Math.min(TRICK_ORDER.length - 1, TRICK_ORDER.indexOf(t) + 1)];
@@ -457,7 +461,7 @@ function update(dt) {
   if (S.state === 'pause') return;
   if (S.state !== 'run') return;
   const tv = levelSpeed(Math.floor(S.cleared / PER_LEVEL)); S.vx += (tv - S.vx) * Math.min(1, dt * 0.8);
-  S.dist += S.vx * dt; S.score += S.vx * dt / 45; S.wheel += S.vx * dt; if (S.landT > 0) S.landT -= dt; S.launchT += dt;
+  const mv = S.onGround ? S.vx : S.airVx; S.dist += mv * dt; S.score += mv * dt / 45; S.wheel += mv * dt; if (S.landT > 0) S.landT -= dt; S.launchT += dt;
   if (S.banner) { S.banner.t += dt; if (S.banner.t > 2.6) S.banner = null; }
   for (const c of S.clouds) { c.x -= S.vx * dt * 0.3; if (c.x < -60) { c.x = W + 40 + Math.random() * 200; c.y = 40 + Math.random() * 90; } }
   spawnKickers();
@@ -498,7 +502,7 @@ function drawKickers() {
       ctx.fillStyle = pal.i;
     }
     if (opts.traj && S.state === 'run' && k.x + k.L > S.dist - 20) {
-      const vy = vyMax(k); ctx.fillStyle = pal.l; for (let t = 0.04; ; t += 0.04) { const y = k.H + vy * t - T.g * t * t / 2; if (y < 0) break; ctx.fillRect(Math.round(lx + S.vx * t), Math.round(GY - y), 1, 1); }
+      const vy = vyMax(k), av = airSpeed(S.vx, 1); ctx.fillStyle = pal.l; for (let t = 0.04; ; t += 0.04) { const y = k.H + vy * t - T.g * t * t / 2; if (y < 0) break; ctx.fillRect(Math.round(lx + av * t), Math.round(GY - y), 1, 1); }
       ctx.fillStyle = pal.i;
     }
     if (opts.num) text(`${k.type} H${k.H} D${k.gap}`, lx - 4, ly - 26, 7, 'right', 0.8, pal.l);
