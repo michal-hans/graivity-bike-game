@@ -275,6 +275,7 @@ function makeKicker(type, vx, jitter = true, variant = 'std') {
     k.gap = Math.round(0.45 * D);
     k.parts.push({ kind: 'gap', len: k.gap }, { kind: 'lander', len: Math.round(0.3 * D), h0: U1, h1: U2 }, { kind: 'table', len: Math.round(0.15 * D), h0: U2, h1: U2 }, { kind: 'dropland', len: dl * 3, h0: dl, h1: 0 });
     k.top = U1; k.lH = U1;
+    k.extraFlat = Math.round(vx * Math.sqrt(2 * U2 / T.g) + 0.5 * vx); // po dropie: dystans lotu z dropu + 0,5 s jazdy na pompowanie
   } else {
     k.gap = Math.round(T.gapF * D); k.lH = Math.round(H * 0.6); k.lL = Math.max(Math.round(k.lH * T.land), Math.round(0.32 * D));
     k.parts.push({ kind: 'gap', len: k.gap }, { kind: 'lander', len: k.lL, h0: k.lH, h1: 0 }); k.top = H;
@@ -350,7 +351,7 @@ function spawnKickers() {
     const type = test ? (Math.random() < 0.5 ? 'M' : 'L') : pickType(lvl);
     const variant = Math.random() < (test ? 0.6 : def.step) ? 'step' : 'std';
     const k = makeKicker(type, levelSpeed(lvl), true, variant); k.x = S.nextK; k.idx = n; k.lvl = lvl; k.stepUp = variant === 'step'; renderKicker(k); S.kickers.push(k); S.nSpawn++;
-    S.nextK = k.x + k.total + Math.round(def.flat[0] + Math.random() * (def.flat[1] - def.flat[0]));
+    S.nextK = k.x + k.total + (k.extraFlat || 0) + Math.round(def.flat[0] + Math.random() * (def.flat[1] - def.flat[0]));
   }
   S.kickers = S.kickers.filter(k => k.x + k.total > S.dist - 200);
 }
